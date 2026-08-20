@@ -50,6 +50,13 @@ Host is one bounded thing.
 ./mvnw verify -Pintegration
 ```
 
+**Error Prone and NullAway fail the compile** ([ADR-0015](../docs/decisions/0015-static-analysis-error-prone-nullaway.md));
+every package is `@NullMarked`. The generated gRPC stubs from `turnbase-common` are excluded from
+NullAway's scope — if you see it complaining about generated code, the exclusion is wrong, not the
+code.
+
+`git config core.hooksPath .githooks` once, to get the `pre-push` fast-fail.
+
 `turnbase-common` and `turnbase-sdk` are pinned by exact version — never `-SNAPSHOT` in a committed
 pom (`conventions.md` §5).
 
