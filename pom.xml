@@ -1,0 +1,405 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.7</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>io.turnbase</groupId>
+  <artifactId>turnbase-game-host</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>turnbase-game-host</name>
+  <description>TurnBase Game Host — GraalVM CE for JDK 21, Espresso guest contexts, gRPC to the
+    Platform Monolith.</description>
+
+  <!--
+    Never a Maven dependency of another repository (Docker image only), so this stays a
+    permanent development SNAPSHOT — conventions.md §5's no-SNAPSHOT rule is about published,
+    consumed artifacts, same reasoning as turnbase-platform's pom.
+  -->
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <!-- Dependencies -->
+    <grpc.version>1.83.1</grpc.version>
+    <jspecify.version>1.0.1</jspecify.version>
+    <assertj.version>3.27.7</assertj.version>
+    <!--
+      Espresso on GraalVM CE for JDK 21, pinned to the exact build the spike verified
+      (espresso-spike-results.md) — not the Oracle build tested alongside it for comparison.
+    -->
+    <espresso.version>23.1.2</espresso.version>
+
+    <!--
+      turnbase-common's published stubs. No tagged release exists yet, so this pins its
+      current development version and resolves it from the local install, per
+      conventions.md §5's bootstrap exception (IMP-GATE-07). Bump this, dropping
+      -SNAPSHOT, once IMP-M0-11 publishes a real release and this repo gets its follow-up
+      PR.
+    -->
+    <turnbase-common.version>0.1.0-SNAPSHOT</turnbase-common.version>
+
+    <!-- Plugins -->
+    <spotless.version>3.10.1</spotless.version>
+    <google-java-format.version>1.36.1</google-java-format.version>
+    <error-prone.version>2.50.0</error-prone.version>
+    <nullaway.version>0.14.1</nullaway.version>
+    <jacoco.version>0.8.15</jacoco.version>
+    <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
+    <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
+
+    <!--
+      Coverage floor. platform-operations.md FR-CICD-003 sets 70% across unit and
+      integration together (conventions.md §3). Vacuous today, same documented shape as
+      turnbase-platform's gate at IMP-M0-03 — it stops being vacuous with the first class
+      IMP-M3-02 adds.
+    -->
+    <jacoco.line.coverage>0.70</jacoco.line.coverage>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.grpc</groupId>
+        <artifactId>grpc-bom</artifactId>
+        <version>${grpc.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!--
+      The internal Orchestration Service <-> Game Host contract (conventions.md §5). This
+      service is the SERVER for GameHostService (CreateSession/ProcessInput/Resync/
+      TerminateSession) and the CLIENT for GameHostRegistryService
+      (Register/Heartbeat/ReportContexts/Deregister) — local-environment.md §2, the
+      opposite pairing from turnbase-platform. Wiring the dispatch path is IMP-M3-04; this
+      item only proves the stubs resolve, compile, and that a Register call runs.
+    -->
+    <dependency>
+      <groupId>io.turnbase</groupId>
+      <artifactId>turnbase-grpc</artifactId>
+      <version>${turnbase-common.version}</version>
+    </dependency>
+    <!-- turnbase-grpc declares no transport (conventions.md §5); this service picks one. -->
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty-shaded</artifactId>
+    </dependency>
+
+    <!--
+      Espresso (Java-on-Truffle), as Maven artifacts — gu was removed in GraalVM for
+      JDK 21+, so there is nothing to provision into the image (CLAUDE.md). polyglot is
+      the Context/Engine API; java-community pulls in the CE Espresso runtime + resources
+      at runtime scope.
+    -->
+    <dependency>
+      <groupId>org.graalvm.polyglot</groupId>
+      <artifactId>polyglot</artifactId>
+      <version>${espresso.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.graalvm.polyglot</groupId>
+      <artifactId>java-community</artifactId>
+      <version>${espresso.version}</version>
+      <type>pom</type>
+    </dependency>
+
+    <!-- JSpecify @NullMarked is read by NullAway (ADR-0015). -->
+    <dependency>
+      <groupId>org.jspecify</groupId>
+      <artifactId>jspecify</artifactId>
+      <version>${jspecify.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      In-process transport lets the registration-client test exercise a real Register call
+      against a stub GameHostRegistryService with no network socket (IMP-GATE-08).
+    -->
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-inprocess</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        Fail early and legibly on a wrong JDK or Maven, before anything else runs
+        (conventions.md §6).
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven-enforcer-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>enforce-toolchain</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <phase>validate</phase>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[21,22)</version>
+                </requireJavaVersion>
+                <requireMavenVersion>
+                  <version>[3.9,)</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        Spotless at validate (conventions.md §2). The fix is ./mvnw spotless:apply.
+      -->
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless.version}</version>
+        <configuration>
+          <java>
+            <includes>
+              <include>src/main/java/**/*.java</include>
+              <include>src/test/java/**/*.java</include>
+            </includes>
+            <googleJavaFormat>
+              <version>${google-java-format.version}</version>
+            </googleJavaFormat>
+            <removeUnusedImports/>
+            <importOrder/>
+            <trimTrailingWhitespace/>
+            <endWithNewline/>
+          </java>
+          <pom>
+            <sortPom>
+              <expandEmptyElements>false</expandEmptyElements>
+            </sortPom>
+          </pom>
+        </configuration>
+        <executions>
+          <execution>
+            <id>spotless-check</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <phase>validate</phase>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        Error Prone + NullAway (ADR-0015). AnnotatedPackages=io.turnbase.gamehost covers
+        every hand-written package; the gRPC stubs from turnbase-common are generated and
+        excluded by path below.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <compilerArgs>
+            <arg>-XDcompilePolicy=simple</arg>
+            <arg>--should-stop=ifError=FLOW</arg>
+            <!-- Required by Error Prone on JDK 21; it refuses to start without it. -->
+            <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
+            <arg>-Xplugin:ErrorProne
+              -XepExcludedPaths:.*/generated-sources/.*
+              -Xep:NullAway:ERROR
+              -XepOpt:NullAway:AnnotatedPackages=io.turnbase.gamehost
+              -XepOpt:NullAway:ExcludedFieldAnnotations=org.springframework.beans.factory.annotation.Autowired</arg>
+          </compilerArgs>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>com.google.errorprone</groupId>
+              <artifactId>error_prone_core</artifactId>
+              <version>${error-prone.version}</version>
+            </path>
+            <path>
+              <groupId>com.uber.nullaway</groupId>
+              <artifactId>nullaway</artifactId>
+              <version>${nullaway.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <includes>
+            <include>**/*Test.java</include>
+          </includes>
+        </configuration>
+      </plugin>
+
+      <!--
+        JaCoCo. conventions.md §3: unit and integration exec files are merged before a
+        single check — one execution bound to test silently measures unit tests only and
+        fails open.
+      -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <id>prepare-unit</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+            <configuration>
+              <destFile>${project.build.directory}/jacoco/unit.exec</destFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>merge-exec</id>
+            <goals>
+              <goal>merge</goal>
+            </goals>
+            <phase>verify</phase>
+            <configuration>
+              <fileSets>
+                <fileSet>
+                  <directory>${project.build.directory}/jacoco</directory>
+                  <includes>
+                    <include>*.exec</include>
+                  </includes>
+                </fileSet>
+              </fileSets>
+              <destFile>${project.build.directory}/jacoco/merged.exec</destFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>report-merged</id>
+            <goals>
+              <goal>report</goal>
+            </goals>
+            <phase>verify</phase>
+            <configuration>
+              <dataFile>${project.build.directory}/jacoco/merged.exec</dataFile>
+              <outputDirectory>${project.build.directory}/site/jacoco</outputDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>check-merged</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <phase>verify</phase>
+            <configuration>
+              <dataFile>${project.build.directory}/jacoco/merged.exec</dataFile>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${jacoco.line.coverage}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      conventions.md §3: *IT runs under failsafe, only with -Pintegration. Empty of tests
+      today; present so the invocation is identical across the Java repositories and the
+      exec file lands where the merge above expects it.
+    -->
+    <profile>
+      <id>integration</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>prepare-integration</id>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+                <phase>pre-integration-test</phase>
+                <configuration>
+                  <destFile>${project.build.directory}/jacoco/integration.exec</destFile>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>${maven-failsafe-plugin.version}</version>
+            <configuration>
+              <includes>
+                <include>**/*IT.java</include>
+              </includes>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
