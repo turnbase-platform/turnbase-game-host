@@ -5,7 +5,7 @@
 # Single-stage: the jar is built by `./mvnw verify`/`package` before `docker build` runs (CI
 # runs both in the same job), not inside the image — same reasoning as turnbase-platform's
 # Dockerfile (conventions.md §5 bootstrap window, IMP-GATE-07).
-FROM ghcr.io/graalvm/jdk-community:21.0.2
+FROM ghcr.io/graalvm/jdk-community:25.0.2
 
 # Guest JDK 21 for Espresso: the Maven-bundled Espresso guest JDK is 17 and rejects Java-21
 # (class major 65) guest code (espresso-spike-results.md). The host image already ships a
