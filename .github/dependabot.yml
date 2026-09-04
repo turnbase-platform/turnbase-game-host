@@ -18,10 +18,11 @@ updates:
       # turnbase-platform, 2026-09-02).
       - dependency-name: org.springframework.boot:spring-boot-starter-parent
         versions: ['>=4.0.0']
-      # There is no CE build for JDK 23+ (CLAUDE.md); an Espresso major bump is a
-      # deliberate re-run of the spike, not a routine update.
+      # Pinned to the EXACT build espresso-spike-results.md verified (conventions.md
+      # "a check that fires is fixed, or suppressed at the site with a reason" — here the
+      # exactness is the point, not a check). Any bump, patch included, is a deliberate
+      # re-run of the spike, never a routine update.
       - dependency-name: org.graalvm.polyglot:*
-        versions: ['>=24']
     groups:
       spring:
         patterns:
@@ -54,8 +55,10 @@ updates:
       interval: weekly
     ignore:
       # No CE build exists for JDK 23+ (CLAUDE.md) — a major bump here is the same
-      # deliberate-upgrade case as the Espresso artifacts above.
-      - dependency-name: ghcr.io/graalvm/jdk-community
+      # deliberate-upgrade case as the Espresso artifacts above. Dependabot's docker
+      # dependency-name omits the registry host — "ghcr.io/graalvm/jdk-community" (the
+      # full image reference) never matched, and PR #3 (25.0.2) is the proof.
+      - dependency-name: graalvm/jdk-community
         versions: ['>=22']
     commit-message:
       prefix: chore
