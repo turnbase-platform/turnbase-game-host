@@ -36,7 +36,7 @@
       Espresso on GraalVM CE for JDK 21, pinned to the exact build the spike verified
       (espresso-spike-results.md) — not the Oracle build tested alongside it for comparison.
     -->
-    <espresso.version>23.1.2</espresso.version>
+    <espresso.version>23.1.12.1</espresso.version>
 
     <!--
       turnbase-common's published stubs. No tagged release exists yet, so this pins its
