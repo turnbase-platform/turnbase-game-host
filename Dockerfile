@@ -7,6 +7,10 @@
 # Dockerfile (conventions.md §5 bootstrap window, IMP-GATE-07).
 FROM ghcr.io/graalvm/jdk-community:21.0.2
 
+# observability.md §4: the OpenTelemetry Java agent, attached below via JAVA_TOOL_OPTIONS —
+# same artifact and version as turnbase-platform's image.
+ADD --chmod=644 https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.31.1/opentelemetry-javaagent.jar /opt/opentelemetry-javaagent.jar
+
 # Guest JDK 21 for Espresso: the Maven-bundled Espresso guest JDK is 17 and rejects Java-21
 # (class major 65) guest code (espresso-spike-results.md). The host image already ships a
 # real JDK 21 at $JAVA_HOME; exposing it at the path turnbase.gamehost.guest-java-home
@@ -23,5 +27,16 @@ COPY target/turnbase-game-host-*.jar app.jar
 # local-environment.md §1: 9090 gRPC, 8081 management. Bind address (loopback under compose,
 # unset under Kubernetes) is set by MANAGEMENT_SERVER_ADDRESS, not baked into the image.
 EXPOSE 9090 8081
+
+# observability.md §4 — same reasoning as turnbase-platform's Dockerfile: only traces go
+# through this agent, metrics and logs are Prometheus-scrape and Promtail's jobs instead.
+ENV JAVA_TOOL_OPTIONS="-javaagent:/opt/opentelemetry-javaagent.jar" \
+    OTEL_SERVICE_NAME=gamehost \
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317 \
+    OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
+    OTEL_TRACES_SAMPLER=parentbased_traceidratio \
+    OTEL_TRACES_SAMPLER_ARG=0.1 \
+    OTEL_METRICS_EXPORTER=none \
+    OTEL_LOGS_EXPORTER=none
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
