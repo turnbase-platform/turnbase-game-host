@@ -13,8 +13,10 @@ server:
 management:
   server:
     port: ${MANAGEMENT_SERVER_PORT:8081}
-    # Loopback under compose, unset (all interfaces) under Kubernetes — local-environment.md
-    # §1, same rule turnbase-platform's 8081 follows.
+    # Unset (all interfaces) in both profiles — local-environment.md §1 (IMP-GATE-14), same rule
+    # turnbase-platform's 8081 follows. Compose restricts reachability by publishing the port to
+    # 127.0.0.1 on the host, not by this app's own bind address — a published Docker port always
+    # forwards to the container's bridge interface, never its loopback.
     address: ${MANAGEMENT_SERVER_ADDRESS:}
   endpoint:
     health:
