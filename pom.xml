@@ -63,6 +63,12 @@
       IMP-M3-02 adds.
     -->
     <jacoco.line.coverage>0.70</jacoco.line.coverage>
+
+    <!--
+      IMP-M0-10: JSON console encoding for Logback. Not managed by the Spring Boot BOM, unlike
+      the Micrometer/OTel artifacts below.
+    -->
+    <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
   </properties>
 
   <dependencyManagement>
@@ -85,6 +91,29 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!--
+      IMP-M0-10: FR-MET-007's /actuator/prometheus, the OpenTelemetry Micrometer Tracing
+      bridge for management.tracing.* (observability.md §4) and JSON console logging
+      (observability.md §3) — same wiring as turnbase-platform's pom.
+    -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-tracing-bridge-otel</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>${logstash-logback-encoder.version}</version>
     </dependency>
 
     <!--

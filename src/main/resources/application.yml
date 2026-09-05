@@ -22,15 +22,26 @@ management:
     health:
       probes:
         enabled: true
+    loggers:
+      access: unrestricted
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,loggers
   health:
     livenessstate:
       enabled: true
     readinessstate:
       enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  otlp:
+    tracing:
+      endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://tempo:4317}
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.1}
 
 # local-environment.md §7.8 — the whole Game Host tunable surface (IMP-M0-09), every default the
 # one §7.8 states (grpc.port per IMP-GATE-17).

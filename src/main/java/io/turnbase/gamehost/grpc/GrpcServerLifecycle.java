@@ -18,18 +18,28 @@ import org.springframework.stereotype.Component;
 class GrpcServerLifecycle implements SmartLifecycle {
 
   private final GameHostServiceImpl gameHostService;
+  private final GrpcCorrelationServerInterceptor correlationInterceptor;
   private final int port;
   private @Nullable Server server;
 
-  GrpcServerLifecycle(GameHostServiceImpl gameHostService, GameHostProperties properties) {
+  GrpcServerLifecycle(
+      GameHostServiceImpl gameHostService,
+      GrpcCorrelationServerInterceptor correlationInterceptor,
+      GameHostProperties properties) {
     this.gameHostService = gameHostService;
+    this.correlationInterceptor = correlationInterceptor;
     this.port = properties.grpc().port();
   }
 
   @Override
   public void start() {
     try {
-      server = ServerBuilder.forPort(port).addService(gameHostService).build().start();
+      server =
+          ServerBuilder.forPort(port)
+              .addService(gameHostService)
+              .intercept(correlationInterceptor)
+              .build()
+              .start();
     } catch (IOException e) {
       throw new IllegalStateException("Game Host gRPC server failed to start on port " + port, e);
     }
