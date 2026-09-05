@@ -32,10 +32,19 @@ management:
     readinessstate:
       enabled: true
 
+# local-environment.md §7.8 — the whole Game Host tunable surface (IMP-M0-09), every default the
+# one §7.8 states (grpc.port per IMP-GATE-17).
 turnbase:
   gamehost:
     grpc:
-      port: 9090
+      port: ${TURNBASE_GAMEHOST_GRPC_PORT:9090}
+      max-message-size: ${TURNBASE_GAMEHOST_GRPC_MAX_MESSAGE_SIZE:32MB}
+    handler-timeout: ${TURNBASE_GAMEHOST_HANDLER_TIMEOUT:30s}
+    interrupt-escalation-grace: ${TURNBASE_GAMEHOST_INTERRUPT_ESCALATION_GRACE:5s}
+    context-idle-eviction: ${TURNBASE_GAMEHOST_CONTEXT_IDLE_EVICTION:5m}
+    memory-pressure-threshold: ${TURNBASE_GAMEHOST_MEMORY_PRESSURE_THRESHOLD:80%}
+    redis-unavailable-window: ${TURNBASE_GAMEHOST_REDIS_UNAVAILABLE_WINDOW:60s}
+    retry-limit: ${TURNBASE_GAMEHOST_RETRY_LIMIT:3}
     guest-java-home: ${TURNBASE_GAMEHOST_GUEST_JAVA_HOME:/opt/graalvm-guest-jdk21}
     orchestration-address: ${TURNBASE_GAMEHOST_ORCHESTRATION_ADDRESS:platform:8080}
 

@@ -2,6 +2,7 @@ package io.turnbase.gamehost.registration;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.turnbase.gamehost.GameHostProperties;
 import io.turnbase.grpc.gamehost.v1.GameHostRegistryServiceGrpc;
 import io.turnbase.grpc.gamehost.v1.RegisterResponse;
 import java.net.InetAddress;
@@ -11,7 +12,6 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
@@ -38,12 +38,10 @@ class RegistrationLifecycle implements SmartLifecycle {
   private @Nullable ManagedChannel channel;
   private @Nullable Thread worker;
 
-  RegistrationLifecycle(
-      @Value("${turnbase.gamehost.orchestration-address}") String orchestrationAddress,
-      @Value("${turnbase.gamehost.grpc.port:9090}") int grpcPort) {
-    this.orchestrationAddress = orchestrationAddress;
+  RegistrationLifecycle(GameHostProperties properties) {
+    this.orchestrationAddress = properties.orchestrationAddress();
     this.instanceId = UUID.randomUUID().toString();
-    this.advertisedAddress = resolveAdvertisedAddress(grpcPort);
+    this.advertisedAddress = resolveAdvertisedAddress(properties.grpc().port());
   }
 
   @Override

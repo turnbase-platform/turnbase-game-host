@@ -2,10 +2,10 @@ package io.turnbase.gamehost.grpc;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.turnbase.gamehost.GameHostProperties;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
@@ -21,10 +21,9 @@ class GrpcServerLifecycle implements SmartLifecycle {
   private final int port;
   private @Nullable Server server;
 
-  GrpcServerLifecycle(
-      GameHostServiceImpl gameHostService, @Value("${turnbase.gamehost.grpc.port:9090}") int port) {
+  GrpcServerLifecycle(GameHostServiceImpl gameHostService, GameHostProperties properties) {
     this.gameHostService = gameHostService;
-    this.port = port;
+    this.port = properties.grpc().port();
   }
 
   @Override
