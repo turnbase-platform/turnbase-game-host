@@ -47,6 +47,18 @@
     <espresso.version>23.1.2</espresso.version>
 
     <!--
+      §7.1's artifact fetch: the v2 S3 client, shared shape with turnbase-platform's
+      ArtifactStoreConfig — MinIO locally (endpoint override), S3 in production.
+    -->
+    <aws-sdk.version>2.54.13</aws-sdk.version>
+    <!--
+      CVE-2026-75595 (CRITICAL): s3's netty-nio-client transitively pulls Netty 4.1.135.Final,
+      which the Trivy gate (IMP-M0-11) rejects. Same pin as turnbase-platform's identical
+      dependency.
+    -->
+    <netty.version>4.1.137.Final</netty.version>
+
+    <!--
       turnbase-common's published stubs. No tagged release exists yet, so this pins its
       current development version and resolves it from the local install, per
       conventions.md §5's bootstrap exception (IMP-GATE-07). Bump this, dropping
@@ -85,6 +97,13 @@
         <groupId>io.grpc</groupId>
         <artifactId>grpc-bom</artifactId>
         <version>${grpc.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-bom</artifactId>
+        <version>${netty.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -161,6 +180,17 @@
       <type>pom</type>
     </dependency>
 
+    <!--
+      §7.1's artifact fetch: MinIO locally, S3 in production, via endpoint override
+      (game-host-internals.md §7.1, FR-LOAD-001/002) — same client shape as
+      turnbase-platform's ArtifactStoreConfig.
+    -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>${aws-sdk.version}</version>
+    </dependency>
+
     <!-- JSpecify @NullMarked is read by NullAway (ADR-0015). -->
     <dependency>
       <groupId>org.jspecify</groupId>
@@ -186,6 +216,25 @@
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-inprocess</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      conventions.md §3: *IT tests exercise a real MinIO, never Docker Compose. Same
+      dependency set as turnbase-platform's ArtifactStore integration test.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>minio</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

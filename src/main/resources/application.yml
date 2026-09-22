@@ -58,6 +58,17 @@ turnbase:
     retry-limit: ${TURNBASE_GAMEHOST_RETRY_LIMIT:3}
     guest-java-home: ${TURNBASE_GAMEHOST_GUEST_JAVA_HOME:/opt/graalvm-guest-jdk21}
     orchestration-address: ${TURNBASE_GAMEHOST_ORCHESTRATION_ADDRESS:platform:8080}
+    sdk-jar-path: ${TURNBASE_GAMEHOST_SDK_JAR_PATH:/opt/turnbase/guest-bridge.jar}
+    artifact-cache-dir: ${TURNBASE_GAMEHOST_ARTIFACT_CACHE_DIR:/var/lib/turnbase/game-host/artifact-cache}
+    artifact-cache-size-limit: ${TURNBASE_GAMEHOST_ARTIFACT_CACHE_SIZE_LIMIT:512MB}
+
+  # local-environment.md §7.9 — shared with the monolith (secrets-and-configuration.md: one
+  # credential, the monolith writes, this service only reads).
+  artifact-store:
+    endpoint: ${TURNBASE_ARTIFACT_STORE_ENDPOINT:http://minio:9000}
+    bucket: ${TURNBASE_ARTIFACT_STORE_BUCKET:turnbase-bundles}
+    access-key: ${TURNBASE_ARTIFACT_STORE_ACCESS_KEY}
+    secret-key: ${TURNBASE_ARTIFACT_STORE_SECRET_KEY}
 
 logging:
   level:
