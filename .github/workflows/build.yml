@@ -82,8 +82,13 @@ jobs:
 
       - name: Verify
         # Spotless runs at validate, Error Prone and NullAway during compile, JaCoCo's
-        # merged check at verify — this one command is the whole Java gate for now.
-        run: ./mvnw --batch-mode --no-transfer-progress verify
+        # merged check at verify. -Pintegration runs the Testcontainers-backed *IT suite (a
+        # real Redis) so the merge JaCoCo does at verify (conventions.md §3) has
+        # integration-tier data to merge; without it the check runs on unit-only coverage and
+        # fails open exactly as that section warns (see turnbase-platform's build.yml, which
+        # already does this). ubuntu-latest ships Docker, so Testcontainers needs no extra
+        # setup.
+        run: ./mvnw --batch-mode --no-transfer-progress verify -Pintegration
 
       - name: Coverage report
         if: always()
