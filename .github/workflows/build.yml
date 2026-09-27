@@ -51,6 +51,8 @@ jobs:
           git clone --depth 1 "https://x-access-token:${TURNBASE_COMMON_PAT}@github.com/${{ github.repository_owner }}/turnbase-common.git" /tmp/turnbase-common
           cd /tmp/turnbase-common
           ./mvnw --batch-mode --no-transfer-progress install -DskipTests
+          cd -
+          rm -rf /tmp/turnbase-common
 
       - name: Install turnbase-sdk (bootstrap — conventions.md §5, IMP-GATE-70)
         # Same reasoning as turnbase-common above: turnbase-sdk has no tagged release yet,
@@ -65,6 +67,8 @@ jobs:
           git clone --depth 1 "https://x-access-token:${TURNBASE_SDK_PAT}@github.com/${{ github.repository_owner }}/turnbase-sdk.git" /tmp/turnbase-sdk
           cd /tmp/turnbase-sdk
           ./mvnw --batch-mode --no-transfer-progress install -DskipTests
+          cd -
+          rm -rf /tmp/turnbase-sdk
 
       - name: Verify
         # Spotless runs at validate, Error Prone and NullAway during compile, JaCoCo's
