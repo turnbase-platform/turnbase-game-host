@@ -52,6 +52,20 @@ jobs:
           cd /tmp/turnbase-common
           ./mvnw --batch-mode --no-transfer-progress install -DskipTests
 
+      - name: Install turnbase-sdk (bootstrap — conventions.md §5, IMP-GATE-70)
+        # Same reasoning as turnbase-common above: turnbase-sdk has no tagged release yet,
+        # so <turnbase-sdk.version> pins its current development version and this runner
+        # needs it in the local repository. turnbase-sdk is private (ADR-0012), so this
+        # needs TURNBASE_SDK_PAT — a fine-grained PAT, read-only on Contents, scoped to
+        # turnbase-sdk only. Delete this step, not adapt it, the same PR that bumps the
+        # version property to a real release once turnbase-sdk publishes one.
+        env:
+          TURNBASE_SDK_PAT: ${{ secrets.TURNBASE_SDK_PAT }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TURNBASE_SDK_PAT}@github.com/${{ github.repository_owner }}/turnbase-sdk.git" /tmp/turnbase-sdk
+          cd /tmp/turnbase-sdk
+          ./mvnw --batch-mode --no-transfer-progress install -DskipTests
+
       - name: Verify
         # Spotless runs at validate, Error Prone and NullAway during compile, JaCoCo's
         # merged check at verify — this one command is the whole Java gate for now.

@@ -67,6 +67,14 @@
     -->
     <turnbase-common.version>0.1.0-SNAPSHOT</turnbase-common.version>
 
+    <!--
+      turnbase-sdk's two published artifacts (game-host-internals.md §3.6). No tagged release
+      exists yet either, so this pins the current development version and resolves it from the
+      local install, per conventions.md §5's bootstrap exception as extended by IMP-GATE-70. Bump
+      this, dropping -SNAPSHOT, once turnbase-sdk cuts its first v*.*.* tag.
+    -->
+    <turnbase-sdk.version>0.1.0-SNAPSHOT</turnbase-sdk.version>
+
     <!-- Plugins -->
     <spotless.version>3.10.1</spotless.version>
     <google-java-format.version>1.36.1</google-java-format.version>
@@ -75,6 +83,7 @@
     <jacoco.version>0.8.15</jacoco.version>
     <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
     <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
+    <maven-shade-plugin.version>3.6.1</maven-shade-plugin.version>
 
     <!--
       Coverage floor. platform-operations.md FR-CICD-003 sets 70% across unit and
@@ -198,6 +207,22 @@
       <version>${jspecify.version}</version>
     </dependency>
 
+    <!--
+      The guest bridge's contents (game-host-internals.md §3.6): the GDK API the game's entry
+      class implements, and the shared serialization engine. Bundled unrelocated into the second,
+      shaded artifact below — never into the Spring Boot fat jar.
+    -->
+    <dependency>
+      <groupId>io.turnbase</groupId>
+      <artifactId>turnbase-sdk</artifactId>
+      <version>${turnbase-sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.turnbase</groupId>
+      <artifactId>turnbase-serialization</artifactId>
+      <version>${turnbase-sdk.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
@@ -241,6 +266,63 @@
 
   <build>
     <plugins>
+      <!--
+        The guest bridge JAR (game-host-internals.md §3.6): a second, classifier'd artifact of
+        this same module, deliberately NOT relocated — the game's own classes must resolve
+        io.turnbase.gdk.* and com.fasterxml.jackson.annotation.* by their real names
+        (bundle-format.md F4). artifactSet/includes keeps this to exactly the guest bridge's
+        contents; everything else this module depends on (Spring, gRPC, Espresso, AWS SDK, …)
+        stays out. The filter on this project's own artifact keeps only the bridge package —
+        the host shim, gRPC service and Espresso context-management classes must never ship into
+        the guest classpath.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${maven-shade-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>guest-bridge</id>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <!--
+              Bound to `package`, same as spring-boot-maven-plugin's `repackage` below — and
+              declared before it in this file, so it runs first. Maven runs the implicit
+              default-jar binding (packaging=jar) before any pom-declared execution in the same
+              phase, so the plain jar exists by the time this runs; declaring this plugin ahead
+              of spring-boot-maven-plugin then guarantees this shades the plain jar, not the
+              Spring Boot fat jar `repackage` produces (which would put everything under
+              BOOT-INF/classes/ and match nothing in the artifact filter below).
+            -->
+            <phase>package</phase>
+            <configuration>
+              <shadedArtifactAttached>true</shadedArtifactAttached>
+              <shadedClassifierName>guest-bridge</shadedClassifierName>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <includes>
+                  <include>io.turnbase:turnbase-sdk</include>
+                  <include>io.turnbase:turnbase-serialization</include>
+                  <include>com.fasterxml.jackson.core:jackson-core</include>
+                  <include>com.fasterxml.jackson.core:jackson-databind</include>
+                  <include>com.fasterxml.jackson.core:jackson-annotations</include>
+                  <include>com.fasterxml.jackson.module:jackson-module-parameter-names</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>io.turnbase:turnbase-game-host</artifact>
+                  <includes>
+                    <include>io/turnbase/gamehost/bridge/**</include>
+                  </includes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>

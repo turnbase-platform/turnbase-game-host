@@ -19,10 +19,25 @@ RUN ln -s "$JAVA_HOME" /opt/graalvm-guest-jdk21
 
 WORKDIR /app
 
-RUN useradd --system --create-home --shell /bin/false turnbase
+RUN useradd --system --create-home --shell /bin/false turnbase && \
+    mkdir -p /opt/turnbase && \
+    chown turnbase:turnbase /app /opt/turnbase
 USER turnbase
 
-COPY target/turnbase-game-host-*.jar app.jar
+# game-host-internals.md §3.6: `./mvnw package` now also produces a second, `guest-bridge`-
+# classifier'd artifact (the shaded guest bridge jar) alongside the deployable app jar, so the
+# glob that used to match this module's jar alone now matches two files. COPY can't express
+# "this jar but not that one", so stage both candidates and sort each to where it belongs: the
+# app jar as the image's entrypoint, the guest bridge jar at the path
+# turnbase.gamehost.sdk-jar-path defaults to (application.yml).
+COPY --chown=turnbase:turnbase target/turnbase-game-host-*.jar /tmp/jars/
+RUN for f in /tmp/jars/*.jar; do \
+      case "$f" in \
+        *-guest-bridge.jar) cp "$f" /opt/turnbase/guest-bridge.jar ;; \
+        *) cp "$f" app.jar ;; \
+      esac; \
+    done && \
+    rm -rf /tmp/jars
 
 # local-environment.md §1: 9090 gRPC, 8081 management. Bind address (loopback under compose,
 # unset under Kubernetes) is set by MANAGEMENT_SERVER_ADDRESS, not baked into the image.
