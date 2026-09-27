@@ -175,6 +175,18 @@ public final class GameEntrypoint {
     sessions.remove(sessionId);
   }
 
+  /**
+   * Crash recovery (game-host-internals.md §3.3/§9.3): reconstructs the guest-side game instance
+   * for a session whose Redis record survived a Game Host crash, without re-running {@code onInit}.
+   * The caller supplies the persisted state on the next {@code process*}/{@code resync} call, same
+   * as any other invocation.
+   *
+   * @throws CodeLoadException under the same conditions as {@link #createSession}
+   */
+  public void restoreSession(String sessionId, String entryPointFqcn) {
+    sessions.put(sessionId, loadEntryClass(entryPointFqcn));
+  }
+
   private Session requireSession(String sessionId) {
     Session session = sessions.get(sessionId);
     if (session == null) {

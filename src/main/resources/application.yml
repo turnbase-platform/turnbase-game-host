@@ -3,6 +3,12 @@ spring:
     name: turnbase-game-host
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+  # session:{sessionId} (game-host-internals.md §8/§13). host+port, never url (IMP-GATE-77).
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
 
 # No REST API — 9090 is the gRPC listener (GrpcServerLifecycle), bound separately below.
 # server.port=-1 disables the main servlet container while leaving management its own,

@@ -62,4 +62,9 @@ public final class GameBridgeClient {
   public void disposeSession(String sessionId) {
     entrypoint.invokeMember("disposeSession", sessionId);
   }
+
+  /** Crash recovery (game-host-internals.md §3.3/§9.3) — does not invoke {@code onInit}. */
+  public void restoreSession(String sessionId, String entryPointFqcn) {
+    entrypoint.invokeMember("restoreSession", sessionId, entryPointFqcn);
+  }
 }

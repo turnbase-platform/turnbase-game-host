@@ -208,6 +208,15 @@
     </dependency>
 
     <!--
+      The Game-Host-owned session:{sessionId} record (game-host-internals.md §8/§13). Addressed by
+      spring.data.redis.host/.port, never .url (IMP-GATE-77) — same rule as turnbase-platform.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-redis</artifactId>
+    </dependency>
+
+    <!--
       The guest bridge's contents (game-host-internals.md §3.6): the GDK API the game's entry
       class implements, and the shared serialization engine. Bundled unrelocated into the second,
       shaded artifact below — never into the Spring Boot fat jar.
