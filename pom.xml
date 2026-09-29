@@ -290,6 +290,18 @@
         <artifactId>maven-shade-plugin</artifactId>
         <version>${maven-shade-plugin.version}</version>
         <executions>
+          <!--
+            spring-boot-starter-parent's pluginManagement binds an execution with the id `default`
+            to maven-shade-plugin:shade. Declaring the plugin here activates it: it ran before
+            `guest-bridge`, replaced the main artifact with an uber jar of every dependency, and
+            `repackage` then nested that under BOOT-INF/classes next to BOOT-INF/lib. Every
+            library was on the classpath twice, in two class loaders, and the OpenTelemetry SDK
+            failed at startup with an IllegalAccessError (split package). Switched off here.
+          -->
+          <execution>
+            <id>default</id>
+            <phase>none</phase>
+          </execution>
           <execution>
             <id>guest-bridge</id>
             <goals>
