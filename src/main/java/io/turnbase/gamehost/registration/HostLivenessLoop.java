@@ -157,7 +157,7 @@ public final class HostLivenessLoop {
           .withDeadlineAfter(3, TimeUnit.SECONDS)
           .deregister(DeregisterRequest.newBuilder().setInstanceId(instanceId).build());
     } catch (RuntimeException e) {
-      log.warn("Deregister failed; the lease will expire on its own", e);
+      log.warn("Deregister failed; the lease will expire on its own: {}", e.toString());
     }
   }
 }

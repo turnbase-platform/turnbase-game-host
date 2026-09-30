@@ -20,8 +20,8 @@ RUN ln -s "$JAVA_HOME" /opt/graalvm-guest-jdk21
 WORKDIR /app
 
 RUN useradd --system --create-home --shell /bin/false turnbase && \
-    mkdir -p /opt/turnbase && \
-    chown turnbase:turnbase /app /opt/turnbase
+    mkdir -p /opt/turnbase /var/lib/turnbase && \
+    chown turnbase:turnbase /app /opt/turnbase /var/lib/turnbase
 USER turnbase
 
 # game-host-internals.md §3.6: `./mvnw package` now also produces a second, `guest-bridge`-

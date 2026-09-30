@@ -323,6 +323,7 @@
               <createDependencyReducedPom>false</createDependencyReducedPom>
               <artifactSet>
                 <includes>
+                  <include>io.turnbase:turnbase-game-host</include>
                   <include>io.turnbase:turnbase-sdk</include>
                   <include>io.turnbase:turnbase-serialization</include>
                   <include>com.fasterxml.jackson.core:jackson-core</include>
