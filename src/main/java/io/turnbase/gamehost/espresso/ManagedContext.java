@@ -53,6 +53,10 @@ public final class ManagedContext implements AutoCloseable {
     lastUsed = now;
   }
 
+  int activeSessionCount() {
+    return activeSessions.get();
+  }
+
   boolean hasActiveSessions() {
     return activeSessions.get() > 0;
   }

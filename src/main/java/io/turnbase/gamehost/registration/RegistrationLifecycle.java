@@ -3,8 +3,8 @@ package io.turnbase.gamehost.registration;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.turnbase.gamehost.GameHostProperties;
+import io.turnbase.gamehost.espresso.GameContextManager;
 import io.turnbase.grpc.gamehost.v1.GameHostRegistryServiceGrpc;
-import io.turnbase.grpc.gamehost.v1.RegisterResponse;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
@@ -16,10 +16,9 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 /**
- * Attempts {@code Register} on a background thread at startup, so a Platform Monolith that has not
- * implemented {@code GameHostRegistryService} yet (IMP-M3-05) never blocks this process from
- * starting (IMP-GATE-08). The dialable pod address and the real heartbeat/drain loop are
- * IMP-M3-05's counterpart, IMP-M3-04.
+ * Runs {@link HostLivenessLoop} (Register, Heartbeat, ReportContexts) on a background thread, so a
+ * Platform Monolith that is not up yet never blocks this process from starting (IMP-GATE-08), and
+ * {@code Deregister}s on shutdown.
  */
 @Component
 class RegistrationLifecycle implements SmartLifecycle {
@@ -36,9 +35,12 @@ class RegistrationLifecycle implements SmartLifecycle {
 
   private volatile boolean running = false;
   private @Nullable ManagedChannel channel;
+  private final GameContextManager contextManager;
   private @Nullable Thread worker;
+  private @Nullable HostLivenessLoop loop;
 
-  RegistrationLifecycle(GameHostProperties properties) {
+  RegistrationLifecycle(GameHostProperties properties, GameContextManager contextManager) {
+    this.contextManager = contextManager;
     this.orchestrationAddress = properties.orchestrationAddress();
     this.instanceId = UUID.randomUUID().toString();
     this.advertisedAddress = resolveAdvertisedAddress(properties.grpc().port());
@@ -54,29 +56,34 @@ class RegistrationLifecycle implements SmartLifecycle {
             advertisedAddress,
             REGISTRATION_BUDGET,
             RETRY_INTERVAL);
-    worker = new Thread(() -> attemptRegistration(client), "game-host-registration");
+    HostLivenessLoop liveness =
+        new HostLivenessLoop(
+            client,
+            GameHostRegistryServiceGrpc.newStub(channel),
+            GameHostRegistryServiceGrpc.newBlockingStub(channel),
+            instanceId,
+            contextManager::liveContextKeys,
+            contextManager::activeSessionCount,
+            RegistrationLifecycle::heapUsedPercent);
+    loop = liveness;
+    worker = new Thread(liveness::run, "game-host-liveness");
     worker.setDaemon(true);
     running = true;
     worker.start();
   }
 
-  private void attemptRegistration(OrchestrationRegistrationClient client) {
-    try {
-      RegisterResponse response = client.registerWithRetry();
-      log.info(
-          "Registered with the Platform Monolith at {} (heartbeatIntervalSeconds={},"
-              + " leaseTtlSeconds={})",
-          orchestrationAddress,
-          response.getHeartbeatIntervalSeconds(),
-          response.getLeaseTtlSeconds());
-    } catch (RuntimeException e) {
-      log.error("Game Host registration against {} failed", orchestrationAddress, e);
-    }
+  private static int heapUsedPercent() {
+    var heap = java.lang.management.ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
+    return heap.getMax() <= 0 ? 0 : (int) (100 * heap.getUsed() / heap.getMax());
   }
 
   @Override
   public void stop() {
     running = false;
+    HostLivenessLoop l = loop;
+    if (l != null) {
+      l.stop();
+    }
     Thread w = worker;
     if (w != null) {
       w.interrupt();

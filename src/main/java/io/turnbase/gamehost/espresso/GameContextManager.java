@@ -83,6 +83,11 @@ public final class GameContextManager implements AutoCloseable {
     return Set.copyOf(contexts.keySet());
   }
 
+  /** The {@code active_sessions} load signal of the heartbeat (§11). */
+  public int activeSessionCount() {
+    return contexts.values().stream().mapToInt(ManagedContext::activeSessionCount).sum();
+  }
+
   /** FR-CTX-009: contexts idle (no active session) past {@code idleEviction} are disposed. */
   public void evictIdle() {
     Instant now = clock.get();
