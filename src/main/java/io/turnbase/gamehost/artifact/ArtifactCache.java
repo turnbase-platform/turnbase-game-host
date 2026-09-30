@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,7 +38,7 @@ public final class ArtifactCache {
     Path destination = cacheDir.resolve(key.replace('/', '_') + ".jar");
     if (!sizeByKey.containsKey(key) || Files.notExists(destination)) {
       createCacheDirIfNeeded();
-      store.download(gameId, version, destination);
+      fetch(gameId, version, destination);
       sizeByKey.put(key, sizeOf(destination));
       evictExcess();
     } else {
@@ -45,6 +46,26 @@ public final class ArtifactCache {
       sizeByKey.get(key);
     }
     return destination;
+  }
+
+  /**
+   * The index above is in memory but {@code cacheDir} outlives the process, so after a restart the
+   * jar may already be on disk — and the store refuses to overwrite a file. Download beside it and
+   * move into place, which also means a torn download is never mistaken for a cached jar.
+   */
+  private void fetch(String gameId, String version, Path destination) {
+    Path partial = destination.resolveSibling(destination.getFileName() + ".part");
+    try {
+      Files.deleteIfExists(partial);
+      store.download(gameId, version, partial);
+      Files.move(
+          partial,
+          destination,
+          StandardCopyOption.REPLACE_EXISTING,
+          StandardCopyOption.ATOMIC_MOVE);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   /** Marks {@code (gameId, version)} as backing a live context — never evicted while pinned. */

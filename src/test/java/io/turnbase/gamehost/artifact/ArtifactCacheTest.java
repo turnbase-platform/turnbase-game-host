@@ -70,4 +70,26 @@ class ArtifactCacheTest {
 
     assertThat(pinned).exists();
   }
+
+  @Test
+  void aJarLeftByAPreviousProcessIsReplacedNotRefused() throws IOException {
+    // The index is in memory, the directory is not: after a restart the jar is on disk and the
+    // real store (ResponseTransformer.toFile) refuses to write over it.
+    Files.write(cacheDir.resolve("tic-tac-toe_1.0.0.jar"), new byte[] {1});
+    ArtifactStore refusingToOverwrite =
+        (gameId, version, destination) -> {
+          try {
+            Files.write(
+                destination, new byte[ARTIFACT_SIZE], java.nio.file.StandardOpenOption.CREATE_NEW);
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        };
+    ArtifactCache cache = new ArtifactCache(refusingToOverwrite, cacheDir, 10_000);
+
+    Path jar = cache.get("tic-tac-toe", "1.0.0");
+
+    assertThat(jar).hasSize(ARTIFACT_SIZE);
+    assertThat(cacheDir.resolve("tic-tac-toe_1.0.0.jar.part")).doesNotExist();
+  }
 }
