@@ -2,6 +2,9 @@ package io.turnbase.gamehost.espresso;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -15,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 /**
  * §6's context/session model: creation-on-demand with coalescing (FR-CTX-002), idle eviction
@@ -55,6 +59,34 @@ class GameContextManagerTest {
       pool.shutdownNow();
       manager.close();
     }
+  }
+
+  /** IMP-M7-10: context create and release are INFO lines carrying the game and the reason. */
+  @Test
+  void contextCreateAndReleaseAreLoggedAtInfo() throws URISyntaxException {
+    Logger logger = (Logger) LoggerFactory.getLogger(GameContextManager.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+    GameContextManager manager =
+        new GameContextManager(factory(), Duration.ofMinutes(5), 0.8, () -> 0.0, clock::get);
+    try {
+      manager.getOrCreate(new ContextKey("logged-game", "1.0.0"), fixtureClasspath());
+      clock.set(Instant.EPOCH.plus(Duration.ofMinutes(6)));
+      manager.evictIdle();
+    } finally {
+      manager.close();
+      logger.detachAppender(appender);
+    }
+    assertThat(appender.list)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .anyMatch(m -> m.startsWith("Game context created") && m.contains("gameId=logged-game"))
+        .anyMatch(
+            m ->
+                m.startsWith("Game context released")
+                    && m.contains("gameId=logged-game")
+                    && m.contains("reason=IDLE_TIMEOUT"));
   }
 
   @Test

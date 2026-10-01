@@ -1,5 +1,7 @@
 package io.turnbase.gamehost.registration;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import io.grpc.stub.StreamObserver;
 import io.turnbase.gamehost.espresso.ContextKey;
 import io.turnbase.grpc.gamehost.v1.DeregisterRequest;
@@ -156,6 +158,7 @@ public final class HostLivenessLoop {
       blockingStub
           .withDeadlineAfter(3, TimeUnit.SECONDS)
           .deregister(DeregisterRequest.newBuilder().setInstanceId(instanceId).build());
+      log.info("Game Host deregistered {}", kv("instanceId", instanceId));
     } catch (RuntimeException e) {
       log.warn("Deregister failed; the lease will expire on its own: {}", e.toString());
     }

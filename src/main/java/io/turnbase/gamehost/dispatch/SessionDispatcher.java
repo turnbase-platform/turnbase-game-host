@@ -1,5 +1,7 @@
 package io.turnbase.gamehost.dispatch;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.turnbase.gamehost.espresso.ContextKey;
@@ -26,6 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import org.graalvm.polyglot.PolyglotException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Dispatches the four {@code GameHostService} RPCs against the context/bridge/Redis machinery
@@ -33,6 +37,8 @@ import org.graalvm.polyglot.PolyglotException;
  * for one session; different sessions run concurrently.
  */
 public final class SessionDispatcher {
+
+  private static final Logger log = LoggerFactory.getLogger(SessionDispatcher.class);
 
   private final GameContextManager contextManager;
   private final GameArtifactResolver artifactResolver;
@@ -100,6 +106,11 @@ public final class SessionDispatcher {
           }
 
           bindLocally(sessionId, key);
+          log.info(
+              "Session created {} {} {}",
+              kv("sessionId", sessionId),
+              kv("gameId", key.gameId()),
+              kv("gameVersion", key.version()));
           recordStore.save(
               sessionId,
               new SessionRecord(
@@ -232,6 +243,7 @@ public final class SessionDispatcher {
     if (key != null) {
       contextManager.sessionEnded(key);
     }
+    log.info("Session terminated {}", kv("sessionId", sessionId));
     return TerminateSessionResponse.newBuilder().setSessionId(sessionId).build();
   }
 

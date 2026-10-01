@@ -1,5 +1,7 @@
 package io.turnbase.gamehost.espresso;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.nio.file.Path;
@@ -11,6 +13,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * §6's context/session model: one context per {@link ContextKey}, created on demand and disposed by
@@ -18,6 +22,8 @@ import java.util.function.Supplier;
  * active session (§6.3).
  */
 public final class GameContextManager implements AutoCloseable {
+
+  private static final Logger log = LoggerFactory.getLogger(GameContextManager.class);
 
   private final EspressoContextFactory contextFactory;
   private final Duration idleEviction;
@@ -61,7 +67,16 @@ public final class GameContextManager implements AutoCloseable {
    */
   public ManagedContext getOrCreate(ContextKey key, Path gameArtifactPath) {
     return contexts.computeIfAbsent(
-        key, k -> new ManagedContext(k, contextFactory.create(gameArtifactPath), clock.get()));
+        key,
+        k -> {
+          ManagedContext created =
+              new ManagedContext(k, contextFactory.create(gameArtifactPath), clock.get());
+          log.info(
+              "Game context created {} {}",
+              kv("gameId", k.gameId()),
+              kv("gameVersion", k.version()));
+          return created;
+        });
   }
 
   public void sessionStarted(ContextKey key) {
@@ -96,7 +111,7 @@ public final class GameContextManager implements AutoCloseable {
         .filter(context -> Duration.between(context.lastUsed(), now).compareTo(idleEviction) >= 0)
         .map(ManagedContext::key)
         .toList()
-        .forEach(this::dispose);
+        .forEach(key -> dispose(key, "IDLE_TIMEOUT"));
   }
 
   /**
@@ -112,19 +127,24 @@ public final class GameContextManager implements AutoCloseable {
         .filter(context -> !context.hasActiveSessions())
         .min(Comparator.comparing(ManagedContext::lastUsed))
         .map(ManagedContext::key)
-        .ifPresent(this::dispose);
+        .ifPresent(key -> dispose(key, "MEMORY_PRESSURE"));
   }
 
-  private void dispose(ContextKey key) {
+  private void dispose(ContextKey key, String reason) {
     ManagedContext context = contexts.remove(key);
     if (context != null) {
       context.close();
+      log.info(
+          "Game context released {} {} {}",
+          kv("gameId", key.gameId()),
+          kv("gameVersion", key.version()),
+          kv("reason", reason));
     }
   }
 
   @Override
   public void close() {
-    Set.copyOf(contexts.keySet()).forEach(this::dispose);
+    Set.copyOf(contexts.keySet()).forEach(key -> dispose(key, "SHUTDOWN"));
   }
 
   private static double heapUsageFraction() {
