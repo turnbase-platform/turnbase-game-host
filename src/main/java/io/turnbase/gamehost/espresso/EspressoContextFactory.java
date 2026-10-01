@@ -24,12 +24,24 @@ import org.graalvm.polyglot.HostAccess;
 public record EspressoContextFactory(String guestJavaHome, String sdkJarPath) {
 
   public Context create(Path gameArtifactPath) {
+    return build(GuestClasspathBuilder.build(sdkJarPath, gameArtifactPath));
+  }
+
+  /**
+   * A context whose classpath is the guest bridge jar alone — it carries the warm-up game ({@code
+   * io.turnbase.gamehost.bridge.WarmupGame}), so no game artifact is needed.
+   */
+  public Context createBridgeOnly() {
+    return build(sdkJarPath);
+  }
+
+  private Context build(String guestClasspath) {
     return Context.newBuilder("java")
         .allowExperimentalOptions(true)
         .allowNativeAccess(true)
         .option("java.JavaHome", guestJavaHome)
         .option("java.ExitHost", "false")
-        .option("java.Classpath", GuestClasspathBuilder.build(sdkJarPath, gameArtifactPath))
+        .option("java.Classpath", guestClasspath)
         .allowHostAccess(HostAccess.NONE)
         .allowHostClassLoading(false)
         .allowCreateProcess(false)
