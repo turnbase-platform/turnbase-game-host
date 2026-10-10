@@ -1,6 +1,6 @@
 # turnbase-game-host
 
-The Game Host — GraalVM CE for JDK 21, Espresso guest contexts, gRPC to the Platform Monolith. Ships
+The Game Host — Spring Boot 4.1 (Jackson 3 host-side), GraalVM CE for JDK 21, Espresso guest contexts, gRPC to the Platform Monolith. Ships
 as the Docker image `turnbase/game-host`.
 
 ## Build

@@ -1,6 +1,6 @@
 # turnbase-game-host — CLAUDE.md
 
-The Game Host. Runs game backends in an Espresso guest context and speaks gRPC to the Platform
+The Game Host (Spring Boot 4.1, ADR-0016). Runs game backends in an Espresso guest context and speaks gRPC to the Platform
 Monolith. Docker image `turnbase/game-host`.
 
 **This file is additive** — the corpus, registry, conventions and session workflow live in the parent
@@ -65,3 +65,6 @@ pom (`conventions.md` §5).
 **Stop, and fix the document in the parent repository first.** Where
 `orchestration-gamehost-protocol.md` disagrees with `gamehost.proto`, the proto wins for wire shape —
 but raise the disagreement rather than silently following one.
+
+**JSON:** host-side code is Jackson 3 (`tools.jackson`). The `bridge` package is shaded into the
+Jackson 2 guest and keeps `com.fasterxml.jackson.*` (ADR-0016 §2); `HostJacksonImportsTest` enforces the split.
