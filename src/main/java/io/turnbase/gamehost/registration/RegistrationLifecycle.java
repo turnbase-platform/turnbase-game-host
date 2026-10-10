@@ -94,6 +94,12 @@ class RegistrationLifecycle implements SmartLifecycle {
     }
   }
 
+  /** Whether the first {@code Register} was acknowledged, i.e. the orchestrator can route here. */
+  boolean hasRegistered() {
+    HostLivenessLoop l = loop;
+    return l != null && l.hasRegistered();
+  }
+
   @Override
   public boolean isRunning() {
     return running;

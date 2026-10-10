@@ -41,6 +41,7 @@ public final class HostLivenessLoop {
 
   private volatile boolean running = true;
   private volatile boolean draining = false;
+  private volatile boolean registeredOnce = false;
 
   public HostLivenessLoop(
       OrchestrationRegistrationClient registration,
@@ -57,6 +58,14 @@ public final class HostLivenessLoop {
     this.contexts = contexts;
     this.activeSessions = activeSessions;
     this.memoryUsedPercent = memoryUsedPercent;
+  }
+
+  /**
+   * Whether a {@code Register} has ever been acknowledged; never reverts, so a re-register is not
+   * an outage.
+   */
+  public boolean hasRegistered() {
+    return registeredOnce;
   }
 
   /** Whether the registry asked this instance to drain (FR-SCALE-006). */
@@ -77,6 +86,7 @@ public final class HostLivenessLoop {
         log.error("Game Host registration failed; trying again", e);
         continue;
       }
+      registeredOnce = true;
       log.info(
           "Registered (heartbeatIntervalSeconds={}, leaseTtlSeconds={})",
           registered.getHeartbeatIntervalSeconds(),
