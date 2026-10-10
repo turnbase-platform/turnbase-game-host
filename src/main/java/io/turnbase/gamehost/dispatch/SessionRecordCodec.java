@@ -1,15 +1,15 @@
 package io.turnbase.gamehost.dispatch;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.turnbase.gamehost.espresso.ContextKey;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** JSON encode/decode for {@link SessionRecord}, the exact shape stored at {@code session:{id}}. */
 final class SessionRecordCodec {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
   private SessionRecordCodec() {}
 
@@ -39,22 +39,22 @@ final class SessionRecordCodec {
     JsonNode contextKeyNode = node.get("contextKey");
     ContextKey contextKey =
         new ContextKey(
-            contextKeyNode.get("gameId").asText(), contextKeyNode.get("version").asText());
+            contextKeyNode.get("gameId").asString(), contextKeyNode.get("version").asString());
     return new SessionRecord(
         contextKey,
-        node.get("entryPointFqcn").asText(),
-        node.get("stateJson").asText(),
+        node.get("entryPointFqcn").asString(),
+        node.get("stateJson").asString(),
         node.get("lastAppliedSequence").asLong(),
-        SessionRecord.Outcome.valueOf(node.get("lastOutcome").asText()),
-        node.get("lastEffectsJson").asText(),
-        node.hasNonNull("lastFailureKind") ? node.get("lastFailureKind").asText() : null,
-        node.hasNonNull("lastFailureMessage") ? node.get("lastFailureMessage").asText() : null);
+        SessionRecord.Outcome.valueOf(node.get("lastOutcome").asString()),
+        node.get("lastEffectsJson").asString(),
+        node.hasNonNull("lastFailureKind") ? node.get("lastFailureKind").asString() : null,
+        node.hasNonNull("lastFailureMessage") ? node.get("lastFailureMessage").asString() : null);
   }
 
   private static JsonNode readTree(String json) {
     try {
       return MAPPER.readTree(json);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new IllegalStateException("malformed session record JSON", e);
     }
   }

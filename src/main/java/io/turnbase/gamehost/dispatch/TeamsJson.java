@@ -1,11 +1,11 @@
 package io.turnbase.gamehost.dispatch;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.turnbase.grpc.gamehost.v1.PlayerRef;
 import io.turnbase.grpc.gamehost.v1.Team;
 import java.util.List;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Encodes proto {@link Team}/{@link PlayerRef} into the platform-fixed {@code teamsJson}/{@code
@@ -14,7 +14,7 @@ import java.util.List;
  */
 final class TeamsJson {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
   private TeamsJson() {}
 

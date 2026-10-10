@@ -1,8 +1,5 @@
 package io.turnbase.gamehost.dispatch;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import io.turnbase.grpc.gamehost.v1.BroadcastEffect;
 import io.turnbase.grpc.gamehost.v1.Effect;
@@ -16,11 +13,13 @@ import io.turnbase.grpc.gamehost.v1.SendToPlayerEffect;
 import io.turnbase.grpc.gamehost.v1.SendToTeamEffect;
 import io.turnbase.grpc.gamehost.v1.TeamResult;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Decodes the InvocationEnvelope/ViewEnvelope JSON that crosses the guest boundary
@@ -29,7 +28,7 @@ import org.jspecify.annotations.Nullable;
  */
 final class EnvelopeCodec {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
   private EnvelopeCodec() {}
 
@@ -44,22 +43,24 @@ final class EnvelopeCodec {
 
   static ParsedInvocation decodeInvocation(String envelopeJson) {
     JsonNode node = readTree(envelopeJson);
-    if ("OK".equals(node.get("status").asText())) {
-      String stateJson = node.get("stateJson").asText();
+    if ("OK".equals(node.get("status").asString())) {
+      String stateJson = node.get("stateJson").asString();
       JsonNode effectsNode = node.get("effects");
       return new ParsedInvocation(
           true, stateJson, decodeEffects(effectsNode), effectsNode.toString(), null);
     }
-    GameFailure failure = failure(node.get("failureKind").asText(), node.get("message").asText());
+    GameFailure failure =
+        failure(node.get("failureKind").asString(), node.get("message").asString());
     return new ParsedInvocation(false, "", List.of(), "[]", failure);
   }
 
   static ParsedView decodeView(String envelopeJson) {
     JsonNode node = readTree(envelopeJson);
-    if ("OK".equals(node.get("status").asText())) {
-      return new ParsedView(true, node.get("viewJson").asText(), null);
+    if ("OK".equals(node.get("status").asString())) {
+      return new ParsedView(true, node.get("viewJson").asString(), null);
     }
-    GameFailure failure = failure(node.get("failureKind").asText(), node.get("message").asText());
+    GameFailure failure =
+        failure(node.get("failureKind").asString(), node.get("message").asString());
     return new ParsedView(false, "", failure);
   }
 
@@ -83,7 +84,7 @@ final class EnvelopeCodec {
   }
 
   private static Effect decodeEffect(JsonNode node) {
-    String type = node.get("type").asText();
+    String type = node.get("type").asString();
     return switch (type) {
       case "BROADCAST" ->
           Effect.newBuilder()
@@ -93,19 +94,19 @@ final class EnvelopeCodec {
           Effect.newBuilder()
               .setSendToPlayer(
                   SendToPlayerEffect.newBuilder()
-                      .setPlayerId(node.get("playerId").asText())
+                      .setPlayerId(node.get("playerId").asString())
                       .setPayload(utf8(node.get("payloadJson"))))
               .build();
       case "SEND_TO_TEAM" ->
           Effect.newBuilder()
               .setSendToTeam(
                   SendToTeamEffect.newBuilder()
-                      .setTeamId(node.get("teamId").asText())
+                      .setTeamId(node.get("teamId").asString())
                       .setPayload(utf8(node.get("payloadJson"))))
               .build();
       case "LOG" ->
           Effect.newBuilder()
-              .setLog(LogEffect.newBuilder().setEntry(node.get("text").asText()))
+              .setLog(LogEffect.newBuilder().setEntry(node.get("text").asString()))
               .build();
       case "GAME_OVER" ->
           Effect.newBuilder()
@@ -123,7 +124,7 @@ final class EnvelopeCodec {
     for (JsonNode teamResult : node.get("teamResults")) {
       outcome.addTeamResults(
           TeamResult.newBuilder()
-              .setTeamId(teamResult.get("teamId").asText())
+              .setTeamId(teamResult.get("teamId").asString())
               .setPlacement(teamResult.get("placement").asInt())
               .putAllStats(stringMap(teamResult.get("stats")))
               .build());
@@ -131,7 +132,7 @@ final class EnvelopeCodec {
     for (JsonNode playerResult : node.get("playerResults")) {
       outcome.addPlayerResults(
           PlayerResult.newBuilder()
-              .setPlayerId(playerResult.get("playerId").asText())
+              .setPlayerId(playerResult.get("playerId").asString())
               .putAllStats(stringMap(playerResult.get("stats")))
               .build());
     }
@@ -140,22 +141,20 @@ final class EnvelopeCodec {
 
   private static Map<String, String> stringMap(JsonNode node) {
     Map<String, String> map = new LinkedHashMap<>();
-    Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
-    while (fields.hasNext()) {
-      Map.Entry<String, JsonNode> entry = fields.next();
-      map.put(entry.getKey(), entry.getValue().asText());
+    for (Map.Entry<String, JsonNode> entry : node.properties()) {
+      map.put(entry.getKey(), entry.getValue().asString());
     }
     return map;
   }
 
   private static ByteString utf8(JsonNode node) {
-    return ByteString.copyFromUtf8(node.asText());
+    return ByteString.copyFromUtf8(node.asString());
   }
 
   private static JsonNode readTree(String json) {
     try {
       return MAPPER.readTree(json);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new IllegalStateException("malformed envelope JSON from guest bridge", e);
     }
   }
