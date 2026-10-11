@@ -38,6 +38,17 @@ registration/   the GameHostRegistryService client (Register/Heartbeat/ReportCon
 espresso/       guest context creation on GraalVM CE for JDK 21
 ```
 
+## Isolation depends on the container
+
+The Espresso context isolates game-version heaps, contains `System.exit` and stops runaway
+handlers (`Context.interrupt`). It does **not** block filesystem or network access or cap memory
+on GraalVM CE — the guest JDK's native `java.io`/`java.net` run straight against the host OS. Those
+three guarantees (FR-CTX-004/005/007) come from the **container**: read-only rootfs, egress
+`NetworkPolicy`, cgroup memory limit, and gVisor in production. They are not provisioned by the
+Compose stack or the Helm chart yet, and the Game Host is safe only because it hosts trusted
+official games. Full table: [`game-host-internals.md` §4.3](../docs/specs/game-host/game-host-internals.md);
+evidence: [`espresso-spike-results.md`](../docs/reviews/2026-07-02-mvp-readiness/espresso-spike-results.md).
+
 ## Run it
 
 ```bash
