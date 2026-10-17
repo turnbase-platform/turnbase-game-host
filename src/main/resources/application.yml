@@ -67,6 +67,7 @@ turnbase:
     sdk-jar-path: ${TURNBASE_GAMEHOST_SDK_JAR_PATH:/opt/turnbase/guest-bridge.jar}
     artifact-cache-dir: ${TURNBASE_GAMEHOST_ARTIFACT_CACHE_DIR:/var/lib/turnbase/game-host/artifact-cache}
     artifact-cache-size-limit: ${TURNBASE_GAMEHOST_ARTIFACT_CACHE_SIZE_LIMIT:512MB}
+    boot-timeout: ${TURNBASE_GAMEHOST_BOOT_TIMEOUT:20s}
 
   # local-environment.md §7.9 — shared with the monolith (secrets-and-configuration.md: one
   # credential, the monolith writes, this service only reads).

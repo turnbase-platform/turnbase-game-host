@@ -11,12 +11,14 @@ public final class ManagedContext implements AutoCloseable {
 
   private final ContextKey key;
   private final Context context;
+  private final BootWatchdog watchdog;
   private @Nullable GameBridgeClient bridgeClient;
   private final AtomicInteger activeSessions = new AtomicInteger();
   private volatile Instant lastUsed;
 
-  ManagedContext(ContextKey key, Context context, Instant createdAt) {
+  ManagedContext(ContextKey key, Context context, Instant createdAt, BootWatchdog watchdog) {
     this.key = key;
+    this.watchdog = watchdog;
     this.context = context;
     this.lastUsed = createdAt;
   }
@@ -38,7 +40,9 @@ public final class ManagedContext implements AutoCloseable {
    */
   public synchronized GameBridgeClient bridgeClient() {
     if (bridgeClient == null) {
-      bridgeClient = new GameBridgeClient(context);
+      bridgeClient =
+          watchdog.guard(
+              "context " + key.gameId() + " " + key.version(), () -> new GameBridgeClient(context));
     }
     return bridgeClient;
   }

@@ -1,5 +1,6 @@
 package io.turnbase.gamehost.warmup;
 
+import io.turnbase.gamehost.espresso.BootWatchdog;
 import io.turnbase.gamehost.shim.GameBridgeClient;
 import java.time.Duration;
 import java.util.UUID;
@@ -16,9 +17,15 @@ final class GameHostWarmup {
   private static final String ENTRY_POINT_FQCN = "io.turnbase.gamehost.bridge.WarmupGame";
 
   private final Supplier<Context> contextFactory;
+  private final BootWatchdog watchdog;
+
+  GameHostWarmup(Supplier<Context> contextFactory, BootWatchdog watchdog) {
+    this.contextFactory = contextFactory;
+    this.watchdog = watchdog;
+  }
 
   GameHostWarmup(Supplier<Context> contextFactory) {
-    this.contextFactory = contextFactory;
+    this(contextFactory, BootWatchdog.disabled());
   }
 
   /** Returns how long the synthetic session took. */
@@ -34,7 +41,7 @@ final class GameHostWarmup {
         "[{\"teamId\":\"%s\",\"name\":\"warmup\",\"players\":[%s]}]".formatted(teamId, player);
 
     try (Context context = contextFactory.get()) {
-      GameBridgeClient client = new GameBridgeClient(context);
+      GameBridgeClient client = watchdog.guard("warm-up", () -> new GameBridgeClient(context));
       String init = client.createSession(sessionId, ENTRY_POINT_FQCN, teams, "{}");
       String state = stateOf(init);
       client.processAction(sessionId, state, player, "{\"by\":1}");

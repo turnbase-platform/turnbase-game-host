@@ -2,6 +2,7 @@ package io.turnbase.gamehost;
 
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.util.unit.DataSize;
 
 /**
@@ -10,7 +11,8 @@ import org.springframework.util.unit.DataSize;
  * §4.2's {@code guestBridgeJar}) — a filesystem path provisioned into the image, the same pattern
  * as {@code guestJavaHome}, not a Maven dependency (IMP-M3-03 ships the real jar; this item only
  * builds the classpath composition). {@code artifactCacheDir}/{@code artifactCacheSizeLimit} back
- * FR-LOAD-003/004.
+ * FR-LOAD-003/004. {@code bootTimeout} bounds a guest context's first call, where Espresso boots; a
+ * boot still running after it is a wedge and the host exits (ADR-0018).
  */
 @ConfigurationProperties(prefix = "turnbase.gamehost")
 public record GameHostProperties(
@@ -25,7 +27,8 @@ public record GameHostProperties(
     String orchestrationAddress,
     String sdkJarPath,
     String artifactCacheDir,
-    DataSize artifactCacheSizeLimit) {
+    DataSize artifactCacheSizeLimit,
+    @DefaultValue("20s") Duration bootTimeout) {
 
   public record Grpc(int port, DataSize maxMessageSize) {}
 

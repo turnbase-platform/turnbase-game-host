@@ -10,11 +10,12 @@ import org.springframework.stereotype.Component;
 class GameContextManagerConfig {
 
   @Bean
-  GameContextManager gameContextManager(GameHostProperties properties) {
+  GameContextManager gameContextManager(GameHostProperties properties, BootWatchdog watchdog) {
     return new GameContextManager(
         new EspressoContextFactory(properties.guestJavaHome(), properties.sdkJarPath()),
         properties.contextIdleEviction(),
-        properties.memoryPressureFraction());
+        properties.memoryPressureFraction(),
+        watchdog);
   }
 
   /** §6.3's eviction checks are periodic, not event-driven — both are cheap, idempotent scans. */

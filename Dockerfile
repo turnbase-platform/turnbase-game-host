@@ -54,4 +54,6 @@ ENV JAVA_TOOL_OPTIONS="-javaagent:/opt/opentelemetry-javaagent.jar" \
     OTEL_METRICS_EXPORTER=none \
     OTEL_LOGS_EXPORTER=none
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# ADR-0018 §2: a separate process kills a JVM that has stopped answering; see the script.
+COPY --chown=turnbase:turnbase --chmod=755 docker/supervise.sh /opt/turnbase/supervise.sh
+ENTRYPOINT ["/opt/turnbase/supervise.sh"]

@@ -14,13 +14,18 @@ import org.springframework.stereotype.Component;
 class RegistrationHealthIndicator implements HealthIndicator {
 
   private final RegistrationLifecycle lifecycle;
+  private final HostWedge wedge;
 
-  RegistrationHealthIndicator(RegistrationLifecycle lifecycle) {
+  RegistrationHealthIndicator(RegistrationLifecycle lifecycle, HostWedge wedge) {
     this.lifecycle = lifecycle;
+    this.wedge = wedge;
   }
 
   @Override
   public Health health() {
+    if (wedge.isWedged()) {
+      return Health.down().withDetail("reason", "guest boot wedged; exiting").build();
+    }
     return lifecycle.hasRegistered()
         ? Health.up().build()
         : Health.down().withDetail("reason", "not registered with the orchestrator yet").build();

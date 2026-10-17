@@ -30,6 +30,7 @@ public final class GameContextManager implements AutoCloseable {
   private final double memoryPressureThreshold;
   private final DoubleSupplier memoryUsageFraction;
   private final Supplier<Instant> clock;
+  private final BootWatchdog watchdog;
 
   private final Map<ContextKey, ManagedContext> contexts = new ConcurrentHashMap<>();
 
@@ -38,7 +39,9 @@ public final class GameContextManager implements AutoCloseable {
       Duration idleEviction,
       double memoryPressureThreshold,
       DoubleSupplier memoryUsageFraction,
-      Supplier<Instant> clock) {
+      Supplier<Instant> clock,
+      BootWatchdog watchdog) {
+    this.watchdog = watchdog;
     this.contextFactory = contextFactory;
     this.idleEviction = idleEviction;
     this.memoryPressureThreshold = memoryPressureThreshold;
@@ -49,13 +52,37 @@ public final class GameContextManager implements AutoCloseable {
   public GameContextManager(
       EspressoContextFactory contextFactory,
       Duration idleEviction,
-      double memoryPressureThreshold) {
+      double memoryPressureThreshold,
+      DoubleSupplier memoryUsageFraction,
+      Supplier<Instant> clock) {
+    this(
+        contextFactory,
+        idleEviction,
+        memoryPressureThreshold,
+        memoryUsageFraction,
+        clock,
+        BootWatchdog.disabled());
+  }
+
+  public GameContextManager(
+      EspressoContextFactory contextFactory,
+      Duration idleEviction,
+      double memoryPressureThreshold,
+      BootWatchdog watchdog) {
     this(
         contextFactory,
         idleEviction,
         memoryPressureThreshold,
         GameContextManager::heapUsageFraction,
-        Instant::now);
+        Instant::now,
+        watchdog);
+  }
+
+  public GameContextManager(
+      EspressoContextFactory contextFactory,
+      Duration idleEviction,
+      double memoryPressureThreshold) {
+    this(contextFactory, idleEviction, memoryPressureThreshold, BootWatchdog.disabled());
   }
 
   /**
@@ -70,7 +97,7 @@ public final class GameContextManager implements AutoCloseable {
         key,
         k -> {
           ManagedContext created =
-              new ManagedContext(k, contextFactory.create(gameArtifactPath), clock.get());
+              new ManagedContext(k, contextFactory.create(gameArtifactPath), clock.get(), watchdog);
           log.info(
               "Game context created {} {}",
               kv("gameId", k.gameId()),

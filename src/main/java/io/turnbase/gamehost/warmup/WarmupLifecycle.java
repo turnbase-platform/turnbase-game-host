@@ -1,6 +1,7 @@
 package io.turnbase.gamehost.warmup;
 
 import io.turnbase.gamehost.GameHostProperties;
+import io.turnbase.gamehost.espresso.BootWatchdog;
 import io.turnbase.gamehost.espresso.EspressoContextFactory;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -23,11 +24,12 @@ class WarmupLifecycle implements SmartLifecycle {
   private volatile boolean running = false;
 
   @org.springframework.beans.factory.annotation.Autowired
-  WarmupLifecycle(GameHostProperties properties) {
+  WarmupLifecycle(GameHostProperties properties, BootWatchdog watchdog) {
     this(
         new GameHostWarmup(
             new EspressoContextFactory(properties.guestJavaHome(), properties.sdkJarPath())
-                ::createBridgeOnly));
+                ::createBridgeOnly,
+            watchdog));
   }
 
   WarmupLifecycle(GameHostWarmup warmup) {
