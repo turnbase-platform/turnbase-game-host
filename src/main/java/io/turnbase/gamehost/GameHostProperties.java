@@ -1,6 +1,7 @@
 package io.turnbase.gamehost;
 
 import java.time.Duration;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.util.unit.DataSize;
@@ -12,7 +13,8 @@ import org.springframework.util.unit.DataSize;
  * as {@code guestJavaHome}, not a Maven dependency (IMP-M3-03 ships the real jar; this item only
  * builds the classpath composition). {@code artifactCacheDir}/{@code artifactCacheSizeLimit} back
  * FR-LOAD-003/004. {@code bootTimeout} bounds a guest context's first call, where Espresso boots; a
- * boot still running after it is a wedge and the host exits (ADR-0018).
+ * boot still running after it is a wedge and the host exits (ADR-0018). {@code advertisedAddress}
+ * is what {@code Register} announces; it has no default and binds {@code null} (IMP-M15-05).
  */
 @ConfigurationProperties(prefix = "turnbase.gamehost")
 public record GameHostProperties(
@@ -28,7 +30,8 @@ public record GameHostProperties(
     String sdkJarPath,
     String artifactCacheDir,
     DataSize artifactCacheSizeLimit,
-    @DefaultValue("20s") Duration bootTimeout) {
+    @DefaultValue("20s") Duration bootTimeout,
+    @Nullable String advertisedAddress) {
 
   public record Grpc(int port, DataSize maxMessageSize) {}
 

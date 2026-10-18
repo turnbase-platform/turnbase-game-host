@@ -35,7 +35,20 @@ class GameHostPropertiesTest {
               assertThat(properties.retryLimit()).isEqualTo(3);
               assertThat(properties.guestJavaHome()).isEqualTo("/opt/graalvm-guest-jdk21");
               assertThat(properties.orchestrationAddress()).isEqualTo("platform:8080");
+              assertThat(properties.advertisedAddress()).isNull();
             });
+  }
+
+  @Test
+  void bindsAnExplicitAdvertisedAddress() {
+    new ApplicationContextRunner()
+        .withInitializer(new ConfigDataApplicationContextInitializer())
+        .withUserConfiguration(PropertiesConfig.class)
+        .withPropertyValues("turnbase.gamehost.advertised-address=10.0.0.9")
+        .run(
+            context ->
+                assertThat(context.getBean(GameHostProperties.class).advertisedAddress())
+                    .isEqualTo("10.0.0.9"));
   }
 
   @Configuration

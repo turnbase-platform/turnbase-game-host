@@ -6,7 +6,6 @@ import io.turnbase.gamehost.GameHostProperties;
 import io.turnbase.gamehost.espresso.GameContextManager;
 import io.turnbase.grpc.gamehost.v1.GameHostRegistryServiceGrpc;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -43,7 +42,11 @@ class RegistrationLifecycle implements SmartLifecycle {
     this.contextManager = contextManager;
     this.orchestrationAddress = properties.orchestrationAddress();
     this.instanceId = UUID.randomUUID().toString();
-    this.advertisedAddress = resolveAdvertisedAddress(properties.grpc().port());
+    this.advertisedAddress =
+        AdvertisedAddress.resolve(
+            properties.advertisedAddress(),
+            properties.grpc().port(),
+            () -> InetAddress.getLocalHost().getHostName());
   }
 
   @Override
@@ -103,13 +106,5 @@ class RegistrationLifecycle implements SmartLifecycle {
   @Override
   public boolean isRunning() {
     return running;
-  }
-
-  private static String resolveAdvertisedAddress(int grpcPort) {
-    try {
-      return InetAddress.getLocalHost().getHostName() + ":" + grpcPort;
-    } catch (UnknownHostException e) {
-      return "localhost:" + grpcPort;
-    }
   }
 }
