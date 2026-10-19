@@ -68,6 +68,7 @@ turnbase:
     artifact-cache-dir: ${TURNBASE_GAMEHOST_ARTIFACT_CACHE_DIR:/var/lib/turnbase/game-host/artifact-cache}
     artifact-cache-size-limit: ${TURNBASE_GAMEHOST_ARTIFACT_CACHE_SIZE_LIMIT:512MB}
     boot-timeout: ${TURNBASE_GAMEHOST_BOOT_TIMEOUT:20s}
+    wedge-marker: ${TURNBASE_GAMEHOST_WEDGE_MARKER:/tmp/turnbase-wedged}
     # advertised-address (env TURNBASE_GAMEHOST_ADVERTISED_ADDRESS) is absent by default: a
     # `${VAR:}` placeholder would bind "" rather than null. Relaxed binding reads the variable anyway.
 

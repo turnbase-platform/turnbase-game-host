@@ -13,7 +13,8 @@ import org.springframework.util.unit.DataSize;
  * as {@code guestJavaHome}, not a Maven dependency (IMP-M3-03 ships the real jar; this item only
  * builds the classpath composition). {@code artifactCacheDir}/{@code artifactCacheSizeLimit} back
  * FR-LOAD-003/004. {@code bootTimeout} bounds a guest context's first call, where Espresso boots; a
- * boot still running after it is a wedge and the host exits (ADR-0018). {@code advertisedAddress}
+ * boot still running after it is a wedge and the host exits (ADR-0018). {@code wedgeMarker} is the
+ * file a wedged host writes for {@code docker/supervise.sh} (IMP-M16-02). {@code advertisedAddress}
  * is what {@code Register} announces; it has no default and binds {@code null} (IMP-M15-05).
  */
 @ConfigurationProperties(prefix = "turnbase.gamehost")
@@ -31,6 +32,7 @@ public record GameHostProperties(
     String artifactCacheDir,
     DataSize artifactCacheSizeLimit,
     @DefaultValue("20s") Duration bootTimeout,
+    @DefaultValue("/tmp/turnbase-wedged") String wedgeMarker,
     @Nullable String advertisedAddress) {
 
   public record Grpc(int port, DataSize maxMessageSize) {}

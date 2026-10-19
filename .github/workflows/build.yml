@@ -36,6 +36,12 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
 
+      - name: Supervisor test
+        # docker/supervise.sh runs as PID 1 in the image and is the only thing that restarts a
+        # wedged JVM (ADR-0018 §2). The test needs no JVM and no cluster: a fake `java` and a stub
+        # HTTP server (IMP-M16-02).
+        run: bash docker/test/supervise-test.sh
+
       - name: Set up GraalVM CE 21
         # NOT actions/setup-java: it has no graalvm-community distribution and fails with
         # "No supported distribution was found for input graalvm-community". Matches the
