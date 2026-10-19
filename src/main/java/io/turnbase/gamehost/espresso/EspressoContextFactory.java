@@ -2,8 +2,10 @@ package io.turnbase.gamehost.espresso;
 
 import java.nio.file.Path;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.EnvironmentAccess;
 import org.graalvm.polyglot.HostAccess;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Builds an Espresso ({@code "java"}) guest context on GraalVM CE for JDK 21, per the spike-locked
@@ -21,7 +23,13 @@ import org.graalvm.polyglot.HostAccess;
  * @param sdkJarPath the guest bridge jar carrying the GDK API classes (§4.2's {@code
  *     guestBridgeJar}) — a provisioned filesystem path, not a Maven dependency of this module
  */
-public record EspressoContextFactory(String guestJavaHome, String sdkJarPath) {
+public record EspressoContextFactory(
+    String guestJavaHome, String sdkJarPath, @Nullable Engine sharedEngine) {
+
+  /** A factory whose every context gets an engine of its own (the pre-IMP-M16-05 behaviour). */
+  public EspressoContextFactory(String guestJavaHome, String sdkJarPath) {
+    this(guestJavaHome, sdkJarPath, null);
+  }
 
   public Context create(Path gameArtifactPath) {
     return build(GuestClasspathBuilder.build(sdkJarPath, gameArtifactPath));
@@ -36,7 +44,11 @@ public record EspressoContextFactory(String guestJavaHome, String sdkJarPath) {
   }
 
   private Context build(String guestClasspath) {
-    return Context.newBuilder("java")
+    Context.Builder builder = Context.newBuilder("java");
+    if (sharedEngine != null) {
+      builder.engine(sharedEngine);
+    }
+    return builder
         .allowExperimentalOptions(true)
         .allowNativeAccess(true)
         .option("java.JavaHome", guestJavaHome)

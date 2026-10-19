@@ -28,13 +28,10 @@ class WarmupLifecycle implements SmartLifecycle {
   private volatile boolean running = false;
 
   @org.springframework.beans.factory.annotation.Autowired
-  WarmupLifecycle(GameHostProperties properties, BootWatchdog watchdog) {
+  WarmupLifecycle(
+      GameHostProperties properties, EspressoContextFactory contextFactory, BootWatchdog watchdog) {
     this(
-        new GameHostWarmup(
-            new EspressoContextFactory(properties.guestJavaHome(), properties.sdkJarPath())
-                ::createBridgeOnly,
-            watchdog),
-        properties.warmupEnabled());
+        new GameHostWarmup(contextFactory::createBridgeOnly, watchdog), properties.warmupEnabled());
   }
 
   WarmupLifecycle(GameHostWarmup warmup, boolean enabled) {

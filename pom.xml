@@ -469,6 +469,12 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
+          <!--
+            One JVM per test class. A JVM can create only about a dozen Espresso contexts in its
+            lifetime, closed or not ("Cannot load library: eden", ADR-0019), and the Espresso tests
+            together spend more than that.
+          -->
+          <reuseForks>false</reuseForks>
           <includes>
             <include>**/*Test.java</include>
           </includes>

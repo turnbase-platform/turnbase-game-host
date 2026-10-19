@@ -9,6 +9,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.graalvm.polyglot.Engine;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -21,9 +23,17 @@ import org.junit.jupiter.api.Test;
  */
 class ConcurrentBootsIT {
 
+  /** One engine for the whole class, as in production (IMP-M16-05). */
+  private static final Engine ENGINE = Engine.newBuilder().allowExperimentalOptions(true).build();
+
+  @AfterAll
+  static void closeEngine() {
+    ENGINE.close(true);
+  }
+
   private static EspressoContextFactory factory() {
     return new EspressoContextFactory(
-        System.getProperty("java.home"), System.getProperty("java.class.path"));
+        System.getProperty("java.home"), System.getProperty("java.class.path"), ENGINE);
   }
 
   @Test
