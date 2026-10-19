@@ -61,6 +61,74 @@ class GameContextManagerTest {
     }
   }
 
+  /** IMP-M16-04: a slow boot for one key must not hold up the creation of any other key. */
+  @Test
+  void aSlowCreationForOneKeyDoesNotBlockOtherKeys() throws Exception {
+    java.util.concurrent.CountDownLatch slowEntered = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch releaseSlow = new java.util.concurrent.CountDownLatch(1);
+    Path slowPath = Path.of("slow");
+    EspressoContextFactory slowFactory = org.mockito.Mockito.mock(EspressoContextFactory.class);
+    org.mockito.Mockito.when(slowFactory.create(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(
+            invocation -> {
+              if (slowPath.equals(invocation.getArgument(0))) {
+                slowEntered.countDown();
+                releaseSlow.await();
+              }
+              return org.graalvm.polyglot.Context.create();
+            });
+    GameContextManager manager = new GameContextManager(slowFactory, Duration.ofMinutes(5), 0.8);
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    try {
+      Future<ManagedContext> slow =
+          pool.submit(() -> manager.getOrCreate(new ContextKey("slow", "1"), slowPath));
+      assertThat(slowEntered.await(5, TimeUnit.SECONDS)).isTrue();
+
+      // Many keys, so that some share a hash bin with the slow one: that is what used to block.
+      Future<?> others =
+          pool.submit(
+              () -> {
+                for (int i = 0; i < 100; i++) {
+                  manager.getOrCreate(new ContextKey("other-" + i, "1"), Path.of("fast"));
+                }
+              });
+      others.get(10, TimeUnit.SECONDS);
+
+      assertThat(slow.isDone()).isFalse();
+      assertThat(manager.liveContextKeys()).hasSize(100);
+      releaseSlow.countDown();
+      assertThat(slow.get(10, TimeUnit.SECONDS)).isNotNull();
+      assertThat(manager.liveContextKeys()).hasSize(101);
+    } finally {
+      releaseSlow.countDown();
+      pool.shutdownNow();
+      manager.close();
+    }
+  }
+
+  /** A failed creation reaches every waiter and is not cached: the next call tries again. */
+  @Test
+  void aFailedCreationIsRethrownToWaitersAndRetriedLater() throws Exception {
+    EspressoContextFactory failing = org.mockito.Mockito.mock(EspressoContextFactory.class);
+    org.mockito.Mockito.when(failing.create(org.mockito.ArgumentMatchers.any()))
+        .thenThrow(new IllegalStateException("no jar"))
+        .thenAnswer(invocation -> org.graalvm.polyglot.Context.create());
+    GameContextManager manager = new GameContextManager(failing, Duration.ofMinutes(5), 0.8);
+    ContextKey key = new ContextKey("g", "1");
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> manager.getOrCreate(key, Path.of("x")))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("no jar");
+      assertThat(manager.liveContextKeys()).isEmpty();
+
+      assertThat(manager.getOrCreate(key, Path.of("x"))).isNotNull();
+      assertThat(manager.liveContextKeys()).containsExactly(key);
+    } finally {
+      manager.close();
+    }
+  }
+
   /** IMP-M7-10: context create and release are INFO lines carrying the game and the reason. */
   @Test
   void contextCreateAndReleaseAreLoggedAtInfo() throws URISyntaxException {

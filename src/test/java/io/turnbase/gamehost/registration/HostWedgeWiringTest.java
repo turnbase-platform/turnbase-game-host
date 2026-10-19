@@ -20,6 +20,7 @@ class HostWedgeWiringTest {
     try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
       GameHostProperties properties = mock(GameHostProperties.class);
       when(properties.bootTimeout()).thenReturn(Duration.ZERO);
+      when(properties.maxConcurrentBoots()).thenReturn(2);
       context.registerBean(GameHostProperties.class, () -> properties);
       context.registerBean(HostWedge.class);
       context.refresh();

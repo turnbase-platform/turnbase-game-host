@@ -114,7 +114,7 @@ class HostWedge implements Runnable {
 
     @Bean
     BootWatchdog bootWatchdog(GameHostProperties properties, HostWedge wedge) {
-      return new BootWatchdog(properties.bootTimeout(), wedge);
+      return new BootWatchdog(properties.bootTimeout(), wedge, properties.maxConcurrentBoots());
     }
   }
 }

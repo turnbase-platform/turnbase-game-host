@@ -36,6 +36,7 @@ class GameHostPropertiesTest {
               assertThat(properties.guestJavaHome()).isEqualTo("/opt/graalvm-guest-jdk21");
               assertThat(properties.orchestrationAddress()).isEqualTo("platform:8080");
               assertThat(properties.wedgeMarker()).isEqualTo("/tmp/turnbase-wedged");
+              assertThat(properties.maxConcurrentBoots()).isEqualTo(2);
               assertThat(properties.advertisedAddress()).isNull();
             });
   }

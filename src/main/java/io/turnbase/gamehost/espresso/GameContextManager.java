@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
@@ -33,6 +35,8 @@ public final class GameContextManager implements AutoCloseable {
   private final BootWatchdog watchdog;
 
   private final Map<ContextKey, ManagedContext> contexts = new ConcurrentHashMap<>();
+  private final Map<ContextKey, CompletableFuture<ManagedContext>> creating =
+      new ConcurrentHashMap<>();
 
   public GameContextManager(
       EspressoContextFactory contextFactory,
@@ -87,23 +91,56 @@ public final class GameContextManager implements AutoCloseable {
 
   /**
    * Returns the live context for {@code key}, creating it on the first call. Concurrent callers for
-   * the same cold key are coalesced behind a single creation (FR-CTX-002) — {@code
-   * ConcurrentHashMap.computeIfAbsent} guarantees the mapping function runs at most once per key,
-   * which is exactly the coalescing §6.1 asks for; it is used here deliberately even though the
-   * function blocks on an Espresso boot.
+   * the same cold key are coalesced behind a single creation (FR-CTX-002): the first registers a
+   * future in {@code creating} and builds the context; the rest wait on that future. The build runs
+   * outside any map lock, so a slow boot for one key never holds up {@code getOrCreate} or {@code
+   * get} for another (IMP-M16-04). A failure reaches every waiter and is not cached.
    */
   public ManagedContext getOrCreate(ContextKey key, Path gameArtifactPath) {
-    return contexts.computeIfAbsent(
-        key,
-        k -> {
-          ManagedContext created =
-              new ManagedContext(k, contextFactory.create(gameArtifactPath), clock.get(), watchdog);
-          log.info(
-              "Game context created {} {}",
-              kv("gameId", k.gameId()),
-              kv("gameVersion", k.version()));
-          return created;
-        });
+    ManagedContext live = contexts.get(key);
+    if (live != null) {
+      return live;
+    }
+    CompletableFuture<ManagedContext> mine = new CompletableFuture<>();
+    CompletableFuture<ManagedContext> other = creating.putIfAbsent(key, mine);
+    if (other != null) {
+      return await(other);
+    }
+    try {
+      // A creation may have finished between the first look and the registration above.
+      ManagedContext created = contexts.get(key);
+      if (created == null) {
+        created =
+            new ManagedContext(key, contextFactory.create(gameArtifactPath), clock.get(), watchdog);
+        contexts.put(key, created);
+        log.info(
+            "Game context created {} {}",
+            kv("gameId", key.gameId()),
+            kv("gameVersion", key.version()));
+      }
+      mine.complete(created);
+      return created;
+    } catch (RuntimeException | Error e) {
+      mine.completeExceptionally(e);
+      throw e;
+    } finally {
+      creating.remove(key, mine);
+    }
+  }
+
+  private static ManagedContext await(CompletableFuture<ManagedContext> creation) {
+    try {
+      return creation.join();
+    } catch (CompletionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof RuntimeException runtime) {
+        throw runtime;
+      }
+      if (cause instanceof Error error) {
+        throw error;
+      }
+      throw e;
+    }
   }
 
   public void sessionStarted(ContextKey key) {

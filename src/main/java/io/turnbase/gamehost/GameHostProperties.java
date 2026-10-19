@@ -18,7 +18,8 @@ import org.springframework.util.unit.DataSize;
  * is what {@code Register} announces; it has no default and binds {@code null} (IMP-M15-05). {@code
  * warmupEnabled} switches on the throwaway warm-up context, which is off by default: a second
  * Espresso boot in one JVM wedges about one start in four, and the warm-up is that second boot
- * (IMP-M16-03).
+ * (IMP-M16-03). {@code maxConcurrentBoots} caps the guest boots running at once; the rest queue and
+ * their {@code bootTimeout} starts when they get a permit (IMP-M16-04).
  */
 @ConfigurationProperties(prefix = "turnbase.gamehost")
 public record GameHostProperties(
@@ -37,6 +38,7 @@ public record GameHostProperties(
     @DefaultValue("20s") Duration bootTimeout,
     @DefaultValue("/tmp/turnbase-wedged") String wedgeMarker,
     @DefaultValue("false") boolean warmupEnabled,
+    @DefaultValue("2") int maxConcurrentBoots,
     @Nullable String advertisedAddress) {
 
   public record Grpc(int port, DataSize maxMessageSize) {}

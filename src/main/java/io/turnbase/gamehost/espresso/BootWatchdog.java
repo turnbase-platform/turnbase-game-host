@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
@@ -21,6 +22,11 @@ import org.slf4j.LoggerFactory;
  * It runs {@code onWedge} once the boot has taken longer than {@code timeout}, from a thread of its
  * own, and the host is expected to take itself out of service and exit so its supervisor starts a
  * fresh process.
+ *
+ * <p>It also caps how many boots run at once (IMP-M16-04): the boots are CPU-bound and slow each
+ * other down, so the cap keeps each one far from the timeout. A boot waits for a permit first, in
+ * arrival order, and its timer starts only when it has the permit — time spent queued is not time
+ * spent wedged.
  */
 public final class BootWatchdog {
 
@@ -30,11 +36,25 @@ public final class BootWatchdog {
 
   private final Duration timeout;
   private final Runnable onWedge;
+  private final Semaphore permits;
   private final @org.jspecify.annotations.Nullable ScheduledExecutorService scheduler;
 
+  /** No cap on concurrent boots. */
   public BootWatchdog(Duration timeout, Runnable onWedge) {
+    this(timeout, onWedge, Integer.MAX_VALUE);
+  }
+
+  /**
+   * @param maxConcurrentBoots how many boots may run at once; the rest queue, fairly
+   */
+  public BootWatchdog(Duration timeout, Runnable onWedge, int maxConcurrentBoots) {
+    if (maxConcurrentBoots < 1) {
+      throw new IllegalArgumentException(
+          "max-concurrent-boots must be at least 1, got " + maxConcurrentBoots);
+    }
     this.timeout = timeout;
     this.onWedge = onWedge;
+    this.permits = new Semaphore(maxConcurrentBoots, true);
     this.scheduler =
         timeout.isZero()
             ? null
@@ -51,8 +71,26 @@ public final class BootWatchdog {
     return DISABLED;
   }
 
-  /** Runs {@code boot}; if it is still running after the timeout, fires {@code onWedge}. */
+  /**
+   * Waits for a permit, then runs {@code boot}; if it is still running {@code timeout} after it got
+   * the permit, fires {@code onWedge}. The wait is bounded by the caller, not here: an interrupt
+   * ends it with an {@link IllegalStateException} and the thread's interrupt flag set.
+   */
   public <T> T guard(String what, Supplier<T> boot) {
+    try {
+      permits.acquire();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Interrupted while waiting to boot " + what, e);
+    }
+    try {
+      return guardAlarm(what, boot);
+    } finally {
+      permits.release();
+    }
+  }
+
+  private <T> T guardAlarm(String what, Supplier<T> boot) {
     if (scheduler == null) {
       return boot.get();
     }

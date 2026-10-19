@@ -70,6 +70,7 @@ turnbase:
     boot-timeout: ${TURNBASE_GAMEHOST_BOOT_TIMEOUT:20s}
     wedge-marker: ${TURNBASE_GAMEHOST_WEDGE_MARKER:/tmp/turnbase-wedged}
     warmup-enabled: ${TURNBASE_GAMEHOST_WARMUP_ENABLED:false}
+    max-concurrent-boots: ${TURNBASE_GAMEHOST_MAX_CONCURRENT_BOOTS:2}
     # advertised-address (env TURNBASE_GAMEHOST_ADVERTISED_ADDRESS) is absent by default: a
     # `${VAR:}` placeholder would bind "" rather than null. Relaxed binding reads the variable anyway.
 
