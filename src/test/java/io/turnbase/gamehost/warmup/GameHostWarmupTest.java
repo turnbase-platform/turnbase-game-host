@@ -48,6 +48,24 @@ class GameHostWarmupTest {
   }
 
   @Test
+  void aDisabledLifecycleBootsNothingAndStillReportsRunning() {
+    AtomicInteger contexts = new AtomicInteger();
+    WarmupLifecycle lifecycle =
+        new WarmupLifecycle(
+            new GameHostWarmup(
+                () -> {
+                  contexts.incrementAndGet();
+                  throw new IllegalStateException("must not boot");
+                }),
+            false);
+
+    lifecycle.start();
+
+    assertThat(contexts).hasValue(0);
+    assertThat(lifecycle.isRunning()).isTrue();
+  }
+
+  @Test
   void lifecycleSwallowsAWarmupFailureSoReadinessIsNeverHeldHostage() {
     WarmupLifecycle lifecycle =
         new WarmupLifecycle(
