@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -141,6 +142,11 @@ public final class GameContextManager implements AutoCloseable {
       }
       throw e;
     }
+  }
+
+  /** The live context for {@code key}, if any; never creates one. */
+  public Optional<ManagedContext> find(ContextKey key) {
+    return Optional.ofNullable(contexts.get(key));
   }
 
   public void sessionStarted(ContextKey key) {

@@ -175,6 +175,11 @@ public final class GameEntrypoint {
     sessions.remove(sessionId);
   }
 
+  /** How many game instances this context currently holds — one per live session (§6.2). */
+  public int liveSessionCount() {
+    return sessions.size();
+  }
+
   /**
    * Crash recovery (game-host-internals.md §3.3/§9.3): reconstructs the guest-side game instance
    * for a session whose Redis record survived a Game Host crash, without re-running {@code onInit}.

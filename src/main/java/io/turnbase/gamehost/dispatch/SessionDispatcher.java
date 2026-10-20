@@ -23,11 +23,11 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import org.graalvm.polyglot.PolyglotException;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,18 +49,54 @@ public final class SessionDispatcher {
    */
   private final Map<String, ContextKey> localSessions = new ConcurrentHashMap<>();
 
-  private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+  /**
+   * Per-session single-flight locks. An entry exists only while a call holds or waits for it
+   * ({@link SessionLock#users}), so the map is empty when the host is idle.
+   */
+  private final Map<String, SessionLock> locks = new ConcurrentHashMap<>();
 
-  /** Sessions terminated on this host — a discarded in-flight result must never resurrect Redis. */
-  private final Set<String> terminated = ConcurrentHashMap.newKeySet();
+  /**
+   * Terminated sessions whose guest instance is still to be disposed because a handler held the
+   * session lock when {@code TerminateSession} arrived (§9.1). Drained by whoever releases the
+   * lock.
+   */
+  private final Map<String, ContextKey> pendingDispose = new ConcurrentHashMap<>();
+
+  /**
+   * Sessions terminated on this host — a late input is rejected and a discarded in-flight result
+   * must never resurrect Redis. Bounded and expiring, see {@link TerminatedSessions}.
+   */
+  private final TerminatedSessions terminated;
+
+  /** A session lock and the number of calls currently holding or waiting for it. */
+  private static final class SessionLock {
+    final ReentrantLock lock = new ReentrantLock();
+
+    /** Only read and written inside {@code locks.compute}. */
+    int users;
+  }
 
   public SessionDispatcher(
       GameContextManager contextManager,
       GameArtifactResolver artifactResolver,
       SessionRecordStore recordStore) {
+    this(contextManager, artifactResolver, recordStore, new TerminatedSessions());
+  }
+
+  SessionDispatcher(
+      GameContextManager contextManager,
+      GameArtifactResolver artifactResolver,
+      SessionRecordStore recordStore,
+      TerminatedSessions terminated) {
     this.contextManager = contextManager;
     this.artifactResolver = artifactResolver;
     this.recordStore = recordStore;
+    this.terminated = terminated;
+  }
+
+  /** Sizes of the per-session structures, for tests that assert nothing is retained. */
+  int trackedSessionCount() {
+    return localSessions.size() + locks.size() + pendingDispose.size();
   }
 
   public ProcessResult createSession(CreateSessionRequest request) {
@@ -138,6 +174,7 @@ public final class SessionDispatcher {
     return withLock(
         sessionId,
         () -> {
+          rejectIfTerminated(sessionId);
           SessionRecord record =
               recordStore
                   .find(sessionId)
@@ -196,6 +233,7 @@ public final class SessionDispatcher {
     return withLock(
         sessionId,
         () -> {
+          rejectIfTerminated(sessionId);
           SessionRecord record =
               recordStore
                   .find(sessionId)
@@ -233,16 +271,14 @@ public final class SessionDispatcher {
   /**
    * Non-blocking and idempotent (§9.1): never waits on the per-session lock. Deletes the Redis
    * record and returns immediately; an in-flight handler's result, once its lock frees, is
-   * discarded rather than persisted (see the {@code terminated} guard in {@link #processInput}).
+   * discarded rather than persisted (see the {@code terminated} guard in {@link #processInput}),
+   * and the guest instance is disposed at that point rather than here.
    */
   public TerminateSessionResponse terminateSession(TerminateSessionRequest request) {
     String sessionId = request.getSessionId();
     terminated.add(sessionId);
     recordStore.delete(sessionId);
-    ContextKey key = localSessions.remove(sessionId);
-    if (key != null) {
-      contextManager.sessionEnded(key);
-    }
+    releaseLocally(sessionId);
     log.info("Session terminated {}", kv("sessionId", sessionId));
     return TerminateSessionResponse.newBuilder().setSessionId(sessionId).build();
   }
@@ -267,6 +303,69 @@ public final class SessionDispatcher {
   private void bindLocally(String sessionId, ContextKey key) {
     if (localSessions.putIfAbsent(sessionId, key) == null) {
       contextManager.sessionStarted(key);
+    }
+    // A terminate that ran between the caller's checks and the line above found nothing to release
+    // and will not run again; release here so the binding and the guest instance are not leaked.
+    if (terminated.contains(sessionId)) {
+      releaseLocally(sessionId);
+    }
+  }
+
+  /**
+   * Drops this host's binding and disposes the guest instance (§6.2), as soon as no handler holds
+   * the session lock. Whichever of the two paths finds the binding removes it, so the context's
+   * active-session count drops exactly once.
+   */
+  private void releaseLocally(String sessionId) {
+    ContextKey key = localSessions.remove(sessionId);
+    if (key == null) {
+      return;
+    }
+    contextManager.sessionEnded(key);
+    pendingDispose.put(sessionId, key);
+    disposePending(sessionId);
+  }
+
+  /**
+   * Runs the guest disposal queued by {@link #releaseLocally} if the lock is free. When a handler
+   * holds it, that handler's own release calls this again: it queued first and released later.
+   */
+  private void disposePending(String sessionId) {
+    if (!pendingDispose.containsKey(sessionId)) {
+      return;
+    }
+    SessionLock lock = acquire(sessionId, false);
+    if (lock == null) {
+      return;
+    }
+    try {
+      ContextKey key = pendingDispose.remove(sessionId);
+      if (key != null) {
+        disposeGuestSession(sessionId, key);
+      }
+    } finally {
+      release(sessionId, lock);
+    }
+  }
+
+  private void disposeGuestSession(String sessionId, ContextKey key) {
+    try {
+      contextManager
+          .find(key)
+          .ifPresent(context -> context.bridgeClient().disposeSession(sessionId));
+    } catch (RuntimeException e) {
+      // The context may have crashed or been closed, which took the guest instance with it.
+      log.warn(
+          "Guest session not disposed {} {}",
+          kv("sessionId", sessionId),
+          kv("error", e.toString()));
+    }
+  }
+
+  private void rejectIfTerminated(String sessionId) {
+    if (terminated.contains(sessionId)) {
+      throw new GameHostStatusException(
+          Status.NOT_FOUND.withDescription("session terminated: " + sessionId));
     }
   }
 
@@ -331,12 +430,46 @@ public final class SessionDispatcher {
   }
 
   private <T> T withLock(String sessionId, Supplier<T> action) {
-    ReentrantLock lock = locks.computeIfAbsent(sessionId, k -> new ReentrantLock());
-    lock.lock();
+    SessionLock held = Objects.requireNonNull(acquire(sessionId, true));
     try {
       return action.get();
     } finally {
-      lock.unlock();
+      release(sessionId, held);
+      disposePending(sessionId);
     }
+  }
+
+  /**
+   * Takes the session's lock, creating it on first use. Returns {@code null} only when {@code
+   * block} is false and another thread holds it.
+   */
+  private @Nullable SessionLock acquire(String sessionId, boolean block) {
+    SessionLock session =
+        locks.compute(
+            sessionId,
+            (id, existing) -> {
+              SessionLock lock = existing != null ? existing : new SessionLock();
+              lock.users++;
+              return lock;
+            });
+    if (block) {
+      session.lock.lock();
+      return session;
+    }
+    if (session.lock.tryLock()) {
+      return session;
+    }
+    forget(sessionId);
+    return null;
+  }
+
+  private void release(String sessionId, SessionLock held) {
+    held.lock.unlock();
+    forget(sessionId);
+  }
+
+  /** Drops one user of the lock and the map entry with the last one. */
+  private void forget(String sessionId) {
+    locks.compute(sessionId, (id, lock) -> lock != null && --lock.users > 0 ? lock : null);
   }
 }

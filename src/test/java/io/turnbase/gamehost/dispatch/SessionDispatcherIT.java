@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
+import io.turnbase.gamehost.espresso.ContextKey;
 import io.turnbase.gamehost.espresso.EspressoContextFactory;
 import io.turnbase.gamehost.espresso.GameContextManager;
 import io.turnbase.grpc.gamehost.v1.ActionInput;
@@ -19,6 +20,14 @@ import io.turnbase.grpc.gamehost.v1.TerminateSessionResponse;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
@@ -62,7 +71,26 @@ class SessionDispatcherIT {
           Duration.ofMinutes(5),
           0.95);
 
-  private static final GameArtifactResolver artifactResolver = (gameId, version) -> Path.of(".");
+  /** Set by a test to hold a handler inside the session lock: resolving the artifact blocks. */
+  private static volatile @Nullable CountDownLatch resolverGate;
+
+  private static final CountDownLatch RESOLVER_ENTERED = new CountDownLatch(1);
+
+  private static final GameArtifactResolver artifactResolver =
+      (gameId, version) -> {
+        CountDownLatch gate = resolverGate;
+        if (gate != null) {
+          RESOLVER_ENTERED.countDown();
+          try {
+            gate.await();
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+        }
+        return Path.of(".");
+      };
+
+  private static final ContextKey KEY = new ContextKey("tic-tac-toe", "1.0.0");
 
   @AfterAll
   static void closeContextManager() {
@@ -70,14 +98,36 @@ class SessionDispatcherIT {
   }
 
   private SessionDispatcher newDispatcher() {
+    return newDispatcher(newRecordStore(), new TerminatedSessions());
+  }
+
+  private SessionRecordStore newRecordStore() {
     LettuceConnectionFactory connectionFactory =
         new LettuceConnectionFactory(
             new RedisStandaloneConfiguration(REDIS.getHost(), REDIS.getMappedPort(6379)));
     connectionFactory.afterPropertiesSet();
     StringRedisTemplate template = new StringRedisTemplate(connectionFactory);
     template.afterPropertiesSet();
-    return new SessionDispatcher(
-        contextManager, artifactResolver, new SessionRecordStore(template));
+    return new SessionRecordStore(template);
+  }
+
+  private SessionDispatcher newDispatcher(SessionRecordStore store, TerminatedSessions terminated) {
+    return new SessionDispatcher(contextManager, artifactResolver, store, terminated);
+  }
+
+  private static TerminateSessionRequest terminateRequest(String sessionId) {
+    return TerminateSessionRequest.newBuilder().setSessionId(sessionId).build();
+  }
+
+  private static int guestSessions() {
+    return contextManager.find(KEY).orElseThrow().bridgeClient().liveSessionCount();
+  }
+
+  private static void assertNotFound(ThrowingCallable call) {
+    assertThatThrownBy(call)
+        .isInstanceOf(GameHostStatusException.class)
+        .extracting(e -> ((GameHostStatusException) e).status().getCode())
+        .isEqualTo(Status.Code.NOT_FOUND);
   }
 
   private static CreateSessionRequest createRequest(String sessionId) {
@@ -231,5 +281,86 @@ class SessionDispatcherIT {
 
     assertThat(result.getStatus()).isEqualTo(ProcessStatus.PROCESS_STATUS_OK);
     assertThat(result.getEffectsList()).anyMatch(e -> e.hasSendToPlayer());
+  }
+
+  @Test
+  void aThousandCreatedAndTerminatedSessionsLeaveNothingBehindExceptTheBoundedTerminatedSet() {
+    TerminatedSessions terminated = new TerminatedSessions();
+    SessionDispatcher dispatcher = newDispatcher(newRecordStore(), terminated);
+    dispatcher.createSession(createRequest(UUID.randomUUID().toString()));
+    int guestBefore = guestSessions();
+    int activeBefore = contextManager.activeSessionCount();
+    int trackedBefore = dispatcher.trackedSessionCount();
+    int terminatedBefore = terminated.size();
+
+    for (int i = 0; i < 1_000; i++) {
+      String sessionId = UUID.randomUUID().toString();
+      dispatcher.createSession(createRequest(sessionId));
+      dispatcher.processInput(actionRequest(sessionId, 1, 1));
+      dispatcher.terminateSession(terminateRequest(sessionId));
+    }
+
+    assertThat(dispatcher.trackedSessionCount()).isEqualTo(trackedBefore);
+    assertThat(contextManager.activeSessionCount()).isEqualTo(activeBefore);
+    assertThat(guestSessions()).isEqualTo(guestBefore);
+    assertThat(terminated.size() - terminatedBefore).isEqualTo(1_000);
+    assertThat(terminated.size()).isLessThanOrEqualTo(TerminatedSessions.MAX_ENTRIES);
+  }
+
+  @Test
+  void aLateInputForATerminatedSessionIsRejectedInsideTheTtlEvenIfItsRecordReappears() {
+    AtomicLong nanos = new AtomicLong();
+    SessionRecordStore store = newRecordStore();
+    SessionDispatcher dispatcher =
+        newDispatcher(store, new TerminatedSessions(TerminatedSessions.TTL, 10, nanos::get));
+    String sessionId = UUID.randomUUID().toString();
+    dispatcher.createSession(createRequest(sessionId));
+    SessionRecord record = store.find(sessionId).orElseThrow();
+    dispatcher.terminateSession(terminateRequest(sessionId));
+    // An in-flight save on another host could put the record back after the delete.
+    store.save(sessionId, record);
+
+    nanos.set(TerminatedSessions.TTL.toNanos() - 1);
+    assertNotFound(() -> dispatcher.processInput(actionRequest(sessionId, 1, 3)));
+
+    nanos.set(TerminatedSessions.TTL.toNanos());
+    assertThat(dispatcher.processInput(actionRequest(sessionId, 1, 3)).getStatus())
+        .isEqualTo(ProcessStatus.PROCESS_STATUS_OK);
+    dispatcher.terminateSession(terminateRequest(sessionId));
+  }
+
+  @Test
+  void terminatingWhileAHandlerHoldsTheLockDisposesTheGuestInstanceWhenItReleases()
+      throws Exception {
+    SessionDispatcher dispatcher = newDispatcher();
+    String sessionId = UUID.randomUUID().toString();
+    dispatcher.createSession(createRequest(sessionId));
+    int guestWithSession = guestSessions();
+
+    CountDownLatch gate = new CountDownLatch(1);
+    resolverGate = gate;
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    try {
+      Future<ProcessResult> inFlight =
+          pool.submit(() -> dispatcher.processInput(actionRequest(sessionId, 1, 3)));
+      assertThat(RESOLVER_ENTERED.await(30, TimeUnit.SECONDS)).isTrue();
+
+      // Returns at once although the handler holds the session lock, and leaves the guest alone.
+      dispatcher.terminateSession(terminateRequest(sessionId));
+      assertThat(guestSessions()).isEqualTo(guestWithSession);
+
+      resolverGate = null;
+      gate.countDown();
+      assertThat(inFlight.get(30, TimeUnit.SECONDS).getStatus())
+          .isEqualTo(ProcessStatus.PROCESS_STATUS_OK);
+    } finally {
+      resolverGate = null;
+      gate.countDown();
+      pool.shutdownNow();
+    }
+
+    assertThat(guestSessions()).isEqualTo(guestWithSession - 1);
+    assertThat(dispatcher.trackedSessionCount()).isZero();
+    assertThat(newRecordStore().find(sessionId)).isEmpty();
   }
 }
