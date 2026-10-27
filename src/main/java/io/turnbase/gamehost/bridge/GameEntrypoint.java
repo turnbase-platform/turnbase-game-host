@@ -200,7 +200,7 @@ public final class GameEntrypoint {
     return session;
   }
 
-  private String buildInvocationEnvelope(GameState state, List<Effect> effects) {
+  private String buildInvocationEnvelope(GameState state, List<? extends Effect> effects) {
     String stateJson;
     try {
       stateJson = serialization.writeState(state, SerializationLimits.DEFAULT_MAX_STATE_BYTES);
