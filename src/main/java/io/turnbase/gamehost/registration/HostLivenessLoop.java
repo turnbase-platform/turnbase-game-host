@@ -41,6 +41,8 @@ public final class HostLivenessLoop {
 
   private volatile boolean running = true;
   private volatile boolean draining = false;
+  private volatile boolean selfDraining = false;
+  private volatile boolean beatNow = false;
   private volatile boolean registeredOnce = false;
 
   public HostLivenessLoop(
@@ -71,6 +73,15 @@ public final class HostLivenessLoop {
   /** Whether the registry asked this instance to drain (FR-SCALE-006). */
   public boolean isDraining() {
     return draining;
+  }
+
+  /**
+   * Announces on the next heartbeat, sent at once, that this instance is leaving (FR-SCALE-006):
+   * the registry stops selecting it, while it goes on serving the sessions it has.
+   */
+  public void beginDrain() {
+    selfDraining = true;
+    beatNow = true;
   }
 
   /** Runs until {@link #stop()}; blocks the calling thread. */
@@ -131,9 +142,14 @@ public final class HostLivenessLoop {
                 .setActiveSessions(activeSessions.getAsInt())
                 .setActiveContexts(contexts.get().size())
                 .setMemoryUsedPercent(memoryUsedPercent.getAsInt())
+                .setDraining(selfDraining)
                 .build());
-        if (ended.await(interval.toMillis(), TimeUnit.MILLISECONDS)) {
-          return;
+        beatNow = false;
+        long next = System.nanoTime() + interval.toNanos();
+        while (!beatNow && System.nanoTime() < next) {
+          if (ended.await(50, TimeUnit.MILLISECONDS)) {
+            return;
+          }
         }
       }
     } catch (RuntimeException e) {

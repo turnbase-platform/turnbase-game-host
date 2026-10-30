@@ -70,6 +70,40 @@ class HostLivenessLoopTest {
     }
   }
 
+  @Test
+  void beginDrainSendsAHeartbeatCarryingDrainingAtOnce() throws Exception {
+    Recorder service = new Recorder();
+    Server server =
+        InProcessServerBuilder.forName("liveness-drain").addService(service).build().start();
+    ManagedChannel channel = InProcessChannelBuilder.forName("liveness-drain").build();
+    var blocking = GameHostRegistryServiceGrpc.newBlockingStub(channel);
+    HostLivenessLoop loop =
+        new HostLivenessLoop(
+            new OrchestrationRegistrationClient(
+                blocking, "i-2", "h:1", Duration.ofSeconds(5), Duration.ofMillis(20)),
+            GameHostRegistryServiceGrpc.newStub(channel),
+            blocking,
+            "i-2",
+            Set::of,
+            () -> 0,
+            () -> 0);
+    Thread t = new Thread(loop::run);
+    t.setDaemon(true);
+    t.start();
+    try {
+      assertThat(service.reRegistered.await(10, TimeUnit.SECONDS)).isTrue();
+      assertThat(java.util.Objects.requireNonNull(service.lastBeat.get()).getDraining()).isFalse();
+      loop.beginDrain();
+      // the interval is a second: only an immediate beat arrives this fast
+      assertThat(service.drainingBeat.await(500, TimeUnit.MILLISECONDS)).isTrue();
+    } finally {
+      loop.stop();
+      t.interrupt();
+      channel.shutdownNow();
+      server.shutdownNow();
+    }
+  }
+
   private static final class Recorder
       extends GameHostRegistryServiceGrpc.GameHostRegistryServiceImplBase {
     final AtomicInteger registers = new AtomicInteger();
@@ -77,6 +111,7 @@ class HostLivenessLoopTest {
     final AtomicReference<HeartbeatRequest> lastBeat = new AtomicReference<>();
     final AtomicReference<ReportContextsRequest> lastContexts = new AtomicReference<>();
     final CountDownLatch reRegistered = new CountDownLatch(1);
+    final CountDownLatch drainingBeat = new CountDownLatch(1);
     final CountDownLatch deregistered = new CountDownLatch(1);
 
     @Override
@@ -98,6 +133,9 @@ class HostLivenessLoopTest {
         @Override
         public void onNext(HeartbeatRequest request) {
           lastBeat.set(request);
+          if (request.getDraining()) {
+            drainingBeat.countDown();
+          }
           out.onNext(HeartbeatResponse.getDefaultInstance());
           if (beats.incrementAndGet() == 2) {
             out.onError(Status.NOT_FOUND.asRuntimeException());

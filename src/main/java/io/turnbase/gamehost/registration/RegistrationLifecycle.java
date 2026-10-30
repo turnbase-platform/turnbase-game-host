@@ -1,5 +1,7 @@
 package io.turnbase.gamehost.registration;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.turnbase.gamehost.GameHostProperties;
@@ -30,6 +32,7 @@ class RegistrationLifecycle implements SmartLifecycle {
 
   private final String orchestrationAddress;
   private final String instanceId;
+  private final Duration drainPeriod;
   private final String advertisedAddress;
 
   private volatile boolean running = false;
@@ -40,6 +43,7 @@ class RegistrationLifecycle implements SmartLifecycle {
 
   RegistrationLifecycle(GameHostProperties properties, GameContextManager contextManager) {
     this.contextManager = contextManager;
+    this.drainPeriod = properties.drainPeriod();
     this.orchestrationAddress = properties.orchestrationAddress();
     this.instanceId = UUID.randomUUID().toString();
     this.advertisedAddress =
@@ -82,8 +86,11 @@ class RegistrationLifecycle implements SmartLifecycle {
 
   @Override
   public void stop() {
-    running = false;
     HostLivenessLoop l = loop;
+    if (l != null && l.hasRegistered()) {
+      drain(l);
+    }
+    running = false;
     if (l != null) {
       l.stop();
     }
@@ -95,6 +102,29 @@ class RegistrationLifecycle implements SmartLifecycle {
     if (c != null) {
       c.shutdownNow();
     }
+  }
+
+  /**
+   * Scale-in (FR-SCALE-006, {@code load-testing-phase-b.md} §5.3): announce draining so that no new
+   * session comes here, then keep serving the sessions this host has until they end or {@code
+   * drain-period} passes. Whatever remains is reassigned by the Platform on its next input. The
+   * gRPC server stops after this (a later lifecycle phase).
+   */
+  private void drain(HostLivenessLoop l) {
+    l.beginDrain();
+    long end = System.nanoTime() + drainPeriod.toNanos();
+    log.info(
+        "Draining {} {}",
+        kv("activeSessions", contextManager.activeSessionCount()),
+        kv("drainPeriod", drainPeriod.toString()));
+    try {
+      do {
+        Thread.sleep(250);
+      } while (contextManager.activeSessionCount() > 0 && System.nanoTime() < end);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+    log.info("Drain over {}", kv("activeSessions", contextManager.activeSessionCount()));
   }
 
   /** Whether the first {@code Register} was acknowledged, i.e. the orchestrator can route here. */

@@ -1,6 +1,9 @@
 spring:
   application:
     name: turnbase-game-host
+  # A shutdown phase may take the drain (turnbase.gamehost.drain-period) plus the gRPC server's own wait.
+  lifecycle:
+    timeout-per-shutdown-phase: 60s
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
   # session:{sessionId} (game-host-internals.md §8/§13). host+port, never url (IMP-GATE-77).
@@ -69,6 +72,7 @@ turnbase:
     artifact-cache-size-limit: ${TURNBASE_GAMEHOST_ARTIFACT_CACHE_SIZE_LIMIT:512MB}
     boot-timeout: ${TURNBASE_GAMEHOST_BOOT_TIMEOUT:20s}
     wedge-marker: ${TURNBASE_GAMEHOST_WEDGE_MARKER:/tmp/turnbase-wedged}
+    drain-period: ${TURNBASE_GAMEHOST_DRAIN_PERIOD:30s}
     warmup-enabled: ${TURNBASE_GAMEHOST_WARMUP_ENABLED:false}
     max-concurrent-boots: ${TURNBASE_GAMEHOST_MAX_CONCURRENT_BOOTS:2}
     # advertised-address (env TURNBASE_GAMEHOST_ADVERTISED_ADDRESS) is absent by default: a

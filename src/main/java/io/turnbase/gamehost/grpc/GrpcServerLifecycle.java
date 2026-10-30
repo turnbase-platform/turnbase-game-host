@@ -62,6 +62,15 @@ class GrpcServerLifecycle implements SmartLifecycle {
     }
   }
 
+  /**
+   * Stops after {@code RegistrationLifecycle}'s drain (default phase) and after the warm-up ({@code
+   * MAX_VALUE - 1}): the sessions of a draining host are served until the period is over.
+   */
+  @Override
+  public int getPhase() {
+    return Integer.MAX_VALUE - 2;
+  }
+
   @Override
   public boolean isRunning() {
     Server s = server;
