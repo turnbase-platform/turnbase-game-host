@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.graalvm.polyglot.Engine;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>{@code sdkJarPath} is this JVM's own classpath, as in {@code SessionDispatcherIT}.
  */
+@Tag("perf")
 class ConcurrentBootsIT {
 
   /** One engine for the whole class, as in production (IMP-M16-05). */

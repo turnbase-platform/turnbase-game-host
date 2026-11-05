@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
  * child JVM (see {@link EngineSharingBenchmark}); the numbers are printed so the decision record
  * (ADR-0019) can quote them, and the test fails if the rule stops holding.
  */
+@Tag("perf")
 class EngineSharingBenchmarkIT {
 
   private static final int CONTEXTS = 4;

@@ -89,6 +89,9 @@
     <jacoco.version>0.8.15</jacoco.version>
     <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
     <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
+    <!-- conventions.md §3: JUnit tag "perf" = a measurement; excluded here, run alone by -Pperf. -->
+    <perf.excludedGroups>perf</perf.excludedGroups>
+    <perf.groups/>
     <maven-shade-plugin.version>3.6.1</maven-shade-plugin.version>
 
     <!--
@@ -475,6 +478,8 @@
             together spend more than that.
           -->
           <reuseForks>false</reuseForks>
+          <excludedGroups>${perf.excludedGroups}</excludedGroups>
+          <groups>${perf.groups}</groups>
           <includes>
             <include>**/*Test.java</include>
           </includes>
@@ -587,6 +592,45 @@
             <artifactId>maven-failsafe-plugin</artifactId>
             <version>${maven-failsafe-plugin.version}</version>
             <configuration>
+              <excludedGroups>${perf.excludedGroups}</excludedGroups>
+              <groups>${perf.groups}</groups>
+              <includes>
+                <include>**/*IT.java</include>
+              </includes>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!--
+      conventions.md §3: measurements (JUnit tag "perf") run alone, here: surefire and failsafe
+      select only that tag, and JaCoCo is off because the unit and integration exec data a
+      coverage check needs are not produced.
+    -->
+    <profile>
+      <id>perf</id>
+      <properties>
+        <perf.excludedGroups/>
+        <perf.groups>perf</perf.groups>
+        <jacoco.skip>true</jacoco.skip>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>${maven-failsafe-plugin.version}</version>
+            <configuration>
+              <excludedGroups>${perf.excludedGroups}</excludedGroups>
+              <groups>${perf.groups}</groups>
               <includes>
                 <include>**/*IT.java</include>
               </includes>
