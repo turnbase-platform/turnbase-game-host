@@ -4,6 +4,7 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
+import io.turnbase.gamehost.espresso.ContextBudgetExhaustedException;
 import io.turnbase.gamehost.espresso.ContextKey;
 import io.turnbase.gamehost.espresso.GameContextManager;
 import io.turnbase.gamehost.espresso.ManagedContext;
@@ -285,7 +286,11 @@ public final class SessionDispatcher {
 
   private ManagedContext resolve(ContextKey key) {
     Path artifactPath = artifactResolver.resolve(key.gameId(), key.version());
-    return contextManager.getOrCreate(key, artifactPath);
+    try {
+      return contextManager.getOrCreate(key, artifactPath);
+    } catch (ContextBudgetExhaustedException e) {
+      throw new GameHostStatusException(Status.UNAVAILABLE.withDescription(e.getMessage()));
+    }
   }
 
   /** §9.3 crash recovery: binds a session record found in Redis but not in this host's memory. */

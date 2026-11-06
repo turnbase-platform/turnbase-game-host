@@ -28,12 +28,16 @@ class GameContextManagerConfig {
 
   @Bean
   GameContextManager gameContextManager(
-      GameHostProperties properties, EspressoContextFactory contextFactory, BootWatchdog watchdog) {
+      GameHostProperties properties,
+      EspressoContextFactory contextFactory,
+      BootWatchdog watchdog,
+      ContextBudget budget) {
     return new GameContextManager(
         contextFactory,
         properties.contextIdleEviction(),
         properties.memoryPressureFraction(),
-        watchdog);
+        watchdog,
+        budget);
   }
 
   /** §6.3's eviction checks are periodic, not event-driven — both are cheap, idempotent scans. */

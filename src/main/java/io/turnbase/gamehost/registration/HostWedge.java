@@ -2,6 +2,7 @@ package io.turnbase.gamehost.registration;
 
 import io.turnbase.gamehost.GameHostProperties;
 import io.turnbase.gamehost.espresso.BootWatchdog;
+import io.turnbase.gamehost.espresso.ContextBudget;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +40,7 @@ class HostWedge implements Runnable {
   private final GameHostProperties properties;
   private final Runnable halt;
   private volatile boolean wedged = false;
+  private volatile boolean retiring = false;
 
   @Autowired
   HostWedge(
@@ -63,16 +65,53 @@ class HostWedge implements Runnable {
     return wedged;
   }
 
+  boolean isRetiring() {
+    return retiring;
+  }
+
   @Override
   public void run() {
     if (wedged) {
       return;
     }
     wedged = true;
+    exitAndDeregister(true);
+  }
+
+  /**
+   * The JVM has created all the Espresso contexts it ever can (OQ-6, {@link ContextBudget}). Unlike
+   * a wedge the JVM is healthy, so first drain: announce draining, keep serving the sessions it has
+   * for {@code drain-period}, deregister; only then exit as for a wedge, and the supervisor starts
+   * a fresh JVM with a fresh budget. Whatever session remains is reassigned (§9.3).
+   */
+  void retire() {
+    if (retiring) {
+      return;
+    }
+    retiring = true;
+    log.warn("All guest contexts of this JVM are spent; draining, then restarting");
+    Thread drain =
+        new Thread(
+            () -> {
+              RegistrationLifecycle lifecycle = registration.getIfAvailable();
+              if (lifecycle != null) {
+                lifecycle.stop();
+              }
+              if (!wedged) {
+                wedged = true;
+                exitAndDeregister(false);
+              }
+            },
+            "host-retire");
+    drain.setDaemon(true);
+    drain.start();
+  }
+
+  private void exitAndDeregister(boolean deregister) {
     writeMarker();
     events.publishEvent(new AvailabilityChangeEvent<>(this, LivenessState.BROKEN));
     startExitTimer();
-    RegistrationLifecycle lifecycle = registration.getIfAvailable();
+    RegistrationLifecycle lifecycle = deregister ? registration.getIfAvailable() : null;
     if (lifecycle != null) {
       lifecycle.stop();
     }
@@ -115,6 +154,13 @@ class HostWedge implements Runnable {
     @Bean
     BootWatchdog bootWatchdog(GameHostProperties properties, HostWedge wedge) {
       return new BootWatchdog(properties.bootTimeout(), wedge, properties.maxConcurrentBoots());
+    }
+
+    /** The warm-up context, when enabled, is one of the JVM's creations too. */
+    @Bean
+    ContextBudget contextBudget(GameHostProperties properties, HostWedge wedge) {
+      int max = properties.maxContextCreations() - (properties.warmupEnabled() ? 1 : 0);
+      return new ContextBudget(max, wedge::retire);
     }
   }
 }

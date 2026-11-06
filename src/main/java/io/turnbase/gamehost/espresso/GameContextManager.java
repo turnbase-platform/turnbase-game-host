@@ -34,6 +34,7 @@ public final class GameContextManager implements AutoCloseable {
   private final DoubleSupplier memoryUsageFraction;
   private final Supplier<Instant> clock;
   private final BootWatchdog watchdog;
+  private final ContextBudget budget;
 
   private final Map<ContextKey, ManagedContext> contexts = new ConcurrentHashMap<>();
   private final Map<ContextKey, CompletableFuture<ManagedContext>> creating =
@@ -46,6 +47,25 @@ public final class GameContextManager implements AutoCloseable {
       DoubleSupplier memoryUsageFraction,
       Supplier<Instant> clock,
       BootWatchdog watchdog) {
+    this(
+        contextFactory,
+        idleEviction,
+        memoryPressureThreshold,
+        memoryUsageFraction,
+        clock,
+        watchdog,
+        ContextBudget.unlimited());
+  }
+
+  public GameContextManager(
+      EspressoContextFactory contextFactory,
+      Duration idleEviction,
+      double memoryPressureThreshold,
+      DoubleSupplier memoryUsageFraction,
+      Supplier<Instant> clock,
+      BootWatchdog watchdog,
+      ContextBudget budget) {
+    this.budget = budget;
     this.watchdog = watchdog;
     this.contextFactory = contextFactory;
     this.idleEviction = idleEviction;
@@ -75,12 +95,23 @@ public final class GameContextManager implements AutoCloseable {
       double memoryPressureThreshold,
       BootWatchdog watchdog) {
     this(
+        contextFactory, idleEviction, memoryPressureThreshold, watchdog, ContextBudget.unlimited());
+  }
+
+  public GameContextManager(
+      EspressoContextFactory contextFactory,
+      Duration idleEviction,
+      double memoryPressureThreshold,
+      BootWatchdog watchdog,
+      ContextBudget budget) {
+    this(
         contextFactory,
         idleEviction,
         memoryPressureThreshold,
         GameContextManager::heapUsageFraction,
         Instant::now,
-        watchdog);
+        watchdog,
+        budget);
   }
 
   public GameContextManager(
@@ -111,6 +142,9 @@ public final class GameContextManager implements AutoCloseable {
       // A creation may have finished between the first look and the registration above.
       ManagedContext created = contexts.get(key);
       if (created == null) {
+        if (!budget.tryAcquire()) {
+          throw new ContextBudgetExhaustedException(budget.used());
+        }
         created =
             new ManagedContext(key, contextFactory.create(gameArtifactPath), clock.get(), watchdog);
         contexts.put(key, created);

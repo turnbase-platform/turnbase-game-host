@@ -89,6 +89,24 @@ class HostWedgeTest {
   }
 
   @Test
+  void aRetiringHostDrainsFirstThenExitsLikeAWedgeWithoutDeregisteringTwice() throws Exception {
+    RegistrationLifecycle lifecycle = mock(RegistrationLifecycle.class);
+    Path marker = dir.resolve("turnbase-wedged");
+    CountDownLatch halted = new CountDownLatch(1);
+    HostWedge host =
+        new HostWedge(providerOf(lifecycle), events, properties(marker), halted::countDown);
+
+    host.retire();
+    host.retire();
+
+    assertThat(halted.await(10, TimeUnit.SECONDS)).isTrue();
+    assertThat(host.isRetiring()).isTrue();
+    verify(lifecycle, org.mockito.Mockito.times(1)).stop();
+    assertThat(marker).exists();
+    assertThat(published).hasSize(1);
+  }
+
+  @Test
   void anUnwritableMarkerDoesNotStopTheExit() throws Exception {
     Path marker = dir.resolve("missing-directory").resolve("turnbase-wedged");
     CountDownLatch halted = new CountDownLatch(1);

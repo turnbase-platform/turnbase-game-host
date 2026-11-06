@@ -21,7 +21,9 @@ import org.springframework.util.unit.DataSize;
  * (IMP-M16-03). {@code maxConcurrentBoots} caps the guest boots running at once; the rest queue and
  * their {@code bootTimeout} starts when they get a permit (IMP-M16-04). {@code drainPeriod} is how
  * long a host that received {@code SIGTERM} keeps serving its sessions, announced as draining,
- * before it deregisters; the Platform reassigns what remains (IMP-M18-13).
+ * before it deregisters; the Platform reassigns what remains (IMP-M18-13). {@code
+ * maxContextCreations} is how many Espresso contexts one JVM can create in its lifetime, twelve on
+ * glibc (game-host-internals.md §18 {@code OQ-6}); a host that has spent them retires.
  */
 @ConfigurationProperties(prefix = "turnbase.gamehost")
 public record GameHostProperties(
@@ -42,7 +44,8 @@ public record GameHostProperties(
     @DefaultValue("false") boolean warmupEnabled,
     @DefaultValue("2") int maxConcurrentBoots,
     @Nullable String advertisedAddress,
-    @DefaultValue("30s") Duration drainPeriod) {
+    @DefaultValue("30s") Duration drainPeriod,
+    @DefaultValue("12") int maxContextCreations) {
 
   public record Grpc(int port, DataSize maxMessageSize) {}
 

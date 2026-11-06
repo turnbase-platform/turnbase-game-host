@@ -75,6 +75,8 @@ turnbase:
     drain-period: ${TURNBASE_GAMEHOST_DRAIN_PERIOD:30s}
     warmup-enabled: ${TURNBASE_GAMEHOST_WARMUP_ENABLED:false}
     max-concurrent-boots: ${TURNBASE_GAMEHOST_MAX_CONCURRENT_BOOTS:2}
+    # A JVM can create only twelve Espresso contexts in its lifetime (game-host-internals.md §18 OQ-6).
+    max-context-creations: ${TURNBASE_GAMEHOST_MAX_CONTEXT_CREATIONS:12}
     # advertised-address (env TURNBASE_GAMEHOST_ADVERTISED_ADDRESS) is absent by default: a
     # `${VAR:}` placeholder would bind "" rather than null. Relaxed binding reads the variable anyway.
 
