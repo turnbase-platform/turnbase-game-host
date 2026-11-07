@@ -9,7 +9,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>io.turnbase</groupId>
+  <groupId>io.github.turnbase-platform</groupId>
   <artifactId>turnbase-game-host</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
@@ -178,7 +178,7 @@
       item only proves the stubs resolve, compile, and that a Register call runs.
     -->
     <dependency>
-      <groupId>io.turnbase</groupId>
+      <groupId>io.github.turnbase-platform</groupId>
       <artifactId>turnbase-grpc</artifactId>
       <version>${turnbase-common.version}</version>
     </dependency>
@@ -239,12 +239,12 @@
       shaded artifact below — never into the Spring Boot fat jar.
     -->
     <dependency>
-      <groupId>io.turnbase</groupId>
+      <groupId>io.github.turnbase-platform</groupId>
       <artifactId>turnbase-sdk</artifactId>
       <version>${turnbase-sdk.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.turnbase</groupId>
+      <groupId>io.github.turnbase-platform</groupId>
       <artifactId>turnbase-serialization</artifactId>
       <version>${turnbase-sdk.version}</version>
     </dependency>
@@ -340,9 +340,9 @@
               <createDependencyReducedPom>false</createDependencyReducedPom>
               <artifactSet>
                 <includes>
-                  <include>io.turnbase:turnbase-game-host</include>
-                  <include>io.turnbase:turnbase-sdk</include>
-                  <include>io.turnbase:turnbase-serialization</include>
+                  <include>io.github.turnbase-platform:turnbase-game-host</include>
+                  <include>io.github.turnbase-platform:turnbase-sdk</include>
+                  <include>io.github.turnbase-platform:turnbase-serialization</include>
                   <include>com.fasterxml.jackson.core:jackson-core</include>
                   <include>com.fasterxml.jackson.core:jackson-databind</include>
                   <include>com.fasterxml.jackson.core:jackson-annotations</include>
@@ -351,7 +351,7 @@
               </artifactSet>
               <filters>
                 <filter>
-                  <artifact>io.turnbase:turnbase-game-host</artifact>
+                  <artifact>io.github.turnbase-platform:turnbase-game-host</artifact>
                   <includes>
                     <include>io/turnbase/gamehost/bridge/**</include>
                   </includes>
