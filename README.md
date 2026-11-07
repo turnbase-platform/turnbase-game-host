@@ -1,5 +1,7 @@
 # turnbase-game-host
 
+> Part of [TurnBase](https://github.com/turnbase-platform/turnbase), a platform for turn-based multiplayer games — this is the sandboxed Game Host. Start at the [umbrella README](https://github.com/turnbase-platform/turnbase#readme).
+
 The Game Host — Spring Boot 4.1 (Jackson 3 host-side), GraalVM CE for JDK 21, Espresso guest contexts, gRPC to the Platform Monolith. Ships
 as the Docker image `turnbase/game-host`.
 
@@ -46,8 +48,8 @@ on GraalVM CE — the guest JDK's native `java.io`/`java.net` run straight again
 three guarantees (FR-CTX-004/005/007) come from the **container**: read-only rootfs, egress
 `NetworkPolicy`, cgroup memory limit, and gVisor in production. They are not provisioned by the
 Compose stack or the Helm chart yet, and the Game Host is safe only because it hosts trusted
-official games. Full table: [`game-host-internals.md` §4.3](../docs/specs/game-host/game-host-internals.md);
-evidence: [`espresso-spike-results.md`](../docs/reviews/2026-07-02-mvp-readiness/espresso-spike-results.md).
+official games. Full table: [`game-host-internals.md` §4.3](https://github.com/turnbase-platform/turnbase/blob/master/docs/specs/game-host/game-host-internals.md);
+evidence: [`espresso-spike-results.md`](https://github.com/turnbase-platform/turnbase/blob/master/docs/reviews/2026-07-02-mvp-readiness/espresso-spike-results.md).
 
 ## Run it
 
@@ -77,3 +79,11 @@ What this repository distributes is audited for its dependencies' licences (allo
 
 The Espresso / Polyglot artifacts report `GNU General Public License, version 2`; they are GPLv2 with the
 Classpath Exception and are allowed only here, as runtime components of this image.
+
+## Layout
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+## Licence
+
+Apache-2.0, see [`LICENSE`](LICENSE).
