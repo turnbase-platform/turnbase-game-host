@@ -61,10 +61,8 @@ jobs:
         # on Contents, scoped to turnbase-common only (a new secret on this repo — secrets
         # do not carry across repos). Delete this step, not adapt it, the same PR that bumps
         # the version property to a real release once IMP-M0-11 publishes one.
-        env:
-          TURNBASE_COMMON_PAT: ${{ secrets.TURNBASE_COMMON_PAT }}
         run: |
-          git clone --depth 1 "https://x-access-token:${TURNBASE_COMMON_PAT}@github.com/${{ github.repository_owner }}/turnbase-common.git" /tmp/turnbase-common
+          git clone --depth 1 "https://github.com/${{ github.repository_owner }}/turnbase-common.git" /tmp/turnbase-common
           cd /tmp/turnbase-common
           ./mvnw --batch-mode --no-transfer-progress install -DskipTests
           cd -
@@ -77,10 +75,8 @@ jobs:
         # needs TURNBASE_SDK_PAT — a fine-grained PAT, read-only on Contents, scoped to
         # turnbase-sdk only. Delete this step, not adapt it, the same PR that bumps the
         # version property to a real release once turnbase-sdk publishes one.
-        env:
-          TURNBASE_SDK_PAT: ${{ secrets.TURNBASE_SDK_PAT }}
         run: |
-          git clone --depth 1 "https://x-access-token:${TURNBASE_SDK_PAT}@github.com/${{ github.repository_owner }}/turnbase-sdk.git" /tmp/turnbase-sdk
+          git clone --depth 1 "https://github.com/${{ github.repository_owner }}/turnbase-sdk.git" /tmp/turnbase-sdk
           cd /tmp/turnbase-sdk
           ./mvnw --batch-mode --no-transfer-progress install -DskipTests
           cd -
