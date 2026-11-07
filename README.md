@@ -64,3 +64,16 @@ At startup the process attempts `Register` against `turnbase.gamehost.orchestrat
 (`local-environment.md` §3) without blocking startup. Until `IMP-M3-05` gives
 `GameHostRegistryService` a real server implementation on the Platform Monolith, this will keep
 retrying and logging failure — expected, not a regression (`IMP-GATE-08`).
+
+## Third-party licences
+
+What this repository distributes is audited for its dependencies' licences (allowed families:
+`docs/implementation/conventions.md` §6 *Third-party licences*). The report is generated, not committed:
+
+```bash
+./mvnw org.codehaus.mojo:license-maven-plugin:2.8.0:add-third-party -Dlicense.excludedScopes=test,provided
+# -> target/generated-sources/license/THIRD-PARTY.txt
+```
+
+The Espresso / Polyglot artifacts report `GNU General Public License, version 2`; they are GPLv2 with the
+Classpath Exception and are allowed only here, as runtime components of this image.
