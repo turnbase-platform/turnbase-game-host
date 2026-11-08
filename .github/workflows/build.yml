@@ -28,8 +28,7 @@ jobs:
 
       - name: Free disk space
         # ubuntu-latest ships with several multi-GB preinstalled toolchains this build never
-        # uses (.NET, Android SDK, GHC, CodeQL). This module's image build + two bootstrap
-        # installs (turnbase-common, turnbase-sdk, IMP-GATE-70) plus Trivy's own ~1GB vuln DB
+        # uses (.NET, Android SDK, GHC, CodeQL). This module's image build plus Trivy's own ~1GB vuln DB
         # push the runner's disk past capacity without this — Trivy's image scan then fails
         # exporting the built image with "no space left on device", not a real vulnerability
         # finding. `|| true`: not every path exists on every runner image.
@@ -52,35 +51,6 @@ jobs:
           java-version: '21'
           cache: maven
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install turnbase-common (bootstrap — conventions.md §5)
-        # turnbase-common has no tagged release yet, so <turnbase-common.version> pins its
-        # current development version and this runner needs it in the local repository.
-        # turnbase-common is private (ADR-0012), so this needs a credential beyond the
-        # workflow's own GITHUB_TOKEN — TURNBASE_COMMON_PAT is a fine-grained PAT, read-only
-        # on Contents, scoped to turnbase-common only (a new secret on this repo — secrets
-        # do not carry across repos). Delete this step, not adapt it, the same PR that bumps
-        # the version property to a real release once IMP-M0-11 publishes one.
-        run: |
-          git clone --depth 1 "https://github.com/${{ github.repository_owner }}/turnbase-common.git" /tmp/turnbase-common
-          cd /tmp/turnbase-common
-          ./mvnw --batch-mode --no-transfer-progress install -DskipTests
-          cd -
-          rm -rf /tmp/turnbase-common
-
-      - name: Install turnbase-sdk (bootstrap — conventions.md §5, IMP-GATE-70)
-        # Same reasoning as turnbase-common above: turnbase-sdk has no tagged release yet,
-        # so <turnbase-sdk.version> pins its current development version and this runner
-        # needs it in the local repository. turnbase-sdk is private (ADR-0012), so this
-        # needs TURNBASE_SDK_PAT — a fine-grained PAT, read-only on Contents, scoped to
-        # turnbase-sdk only. Delete this step, not adapt it, the same PR that bumps the
-        # version property to a real release once turnbase-sdk publishes one.
-        run: |
-          git clone --depth 1 "https://github.com/${{ github.repository_owner }}/turnbase-sdk.git" /tmp/turnbase-sdk
-          cd /tmp/turnbase-sdk
-          ./mvnw --batch-mode --no-transfer-progress install -DskipTests
-          cd -
-          rm -rf /tmp/turnbase-sdk
 
       - name: Verify
         # Spotless runs at validate, Error Prone and NullAway during compile, JaCoCo's
@@ -124,8 +94,7 @@ jobs:
 
       - name: Build container image
         # The jar was already built by `./mvnw verify` above; the Dockerfile packages it
-        # rather than rebuilding, so the image build never needs its own network access to
-        # turnbase-common (conventions.md §5 bootstrap window, IMP-GATE-07).
+        # rather than rebuilding, so the image build never needs its own network access to Maven.
         run: docker build -t turnbase/game-host:ci .
 
       - name: Trivy scan — image

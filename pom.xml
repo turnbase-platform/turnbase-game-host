@@ -72,22 +72,11 @@
     -->
     <tomcat.version>11.0.25</tomcat.version>
 
-    <!--
-      turnbase-common's published stubs. No tagged release exists yet, so this pins its
-      current development version and resolves it from the local install, per
-      conventions.md §5's bootstrap exception (IMP-GATE-07). Bump this, dropping
-      -SNAPSHOT, once IMP-M0-11 publishes a real release and this repo gets its follow-up
-      PR.
-    -->
-    <turnbase-common.version>0.1.0-SNAPSHOT</turnbase-common.version>
+    <!-- Released 0.1.0, resolved from the producer's Pages Maven repository (ADR-0022). -->
+    <turnbase-common.version>0.1.0</turnbase-common.version>
 
-    <!--
-      turnbase-sdk's two published artifacts (game-host-internals.md §3.6). No tagged release
-      exists yet either, so this pins the current development version and resolves it from the
-      local install, per conventions.md §5's bootstrap exception as extended by IMP-GATE-70. Bump
-      this, dropping -SNAPSHOT, once turnbase-sdk cuts its first v*.*.* tag.
-    -->
-    <turnbase-sdk.version>0.1.0-SNAPSHOT</turnbase-sdk.version>
+    <!-- Released 0.1.0, resolved from the producer's Pages Maven repository (ADR-0022). -->
+    <turnbase-sdk.version>0.1.0</turnbase-sdk.version>
 
     <!-- Plugins -->
     <spotless.version>3.10.1</spotless.version>
@@ -289,6 +278,17 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <repositories>
+    <repository>
+      <id>turnbase-common</id>
+      <url>https://turnbase-platform.github.io/turnbase-common/maven/</url>
+    </repository>
+    <repository>
+      <id>turnbase-sdk</id>
+      <url>https://turnbase-platform.github.io/turnbase-sdk/maven/</url>
+    </repository>
+  </repositories>
 
   <build>
     <plugins>
